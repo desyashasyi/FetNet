@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      target: dev
+    environment:
+      PHP_IDE_CONFIG: "serverName=fetnet"
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+  nginx:
+    restart: unless-stopped
+
+  pgsql:
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+
+  redis:
+    restart: unless-stopped
+    ports:
+      - "6382:6379"
