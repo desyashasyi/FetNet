@@ -24,7 +24,7 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
 
-            $table->unique(['subject_id', 'program_id', 'semester_id']);
+            $table->unique(['subject_id', 'program_id', 'semester_id'], 'fap_subject_program_semester_unique');
         });
 
         // 2. Add planning_id to fetnet_activity (after program_id)
@@ -40,21 +40,20 @@ return new class extends Migration
 
         // 3. Migrate existing data: create planning records for activities that have subject_id AND semester_id
         DB::statement('
-            INSERT INTO fetnet_activity_planning (subject_id, program_id, semester_id, created_at, updated_at)
+            INSERT IGNORE INTO fetnet_activity_planning (subject_id, program_id, semester_id, created_at, updated_at)
             SELECT DISTINCT subject_id, program_id, semester_id, NOW(), NOW()
             FROM fetnet_activity
             WHERE subject_id IS NOT NULL AND semester_id IS NOT NULL
-            ON CONFLICT (subject_id, program_id, semester_id) DO NOTHING
         ');
 
         // Update planning_id on activities via join
         DB::statement('
             UPDATE fetnet_activity a
-            SET planning_id = p.id
-            FROM fetnet_activity_planning p
-            WHERE a.subject_id = p.subject_id
-              AND a.program_id = p.program_id
-              AND a.semester_id = p.semester_id
+            JOIN fetnet_activity_planning p
+              ON a.subject_id = p.subject_id
+             AND a.program_id = p.program_id
+             AND a.semester_id = p.semester_id
+            SET a.planning_id = p.id
         ');
 
         // 4. Drop subject_id and semester_id from fetnet_activity
@@ -87,10 +86,8 @@ return new class extends Migration
         // Restore subject_id and semester_id from planning records
         DB::statement('
             UPDATE fetnet_activity a
-            SET subject_id = p.subject_id,
-                semester_id = p.semester_id
-            FROM fetnet_activity_planning p
-            WHERE a.planning_id = p.id
+            JOIN fetnet_activity_planning p ON a.planning_id = p.id
+            SET a.subject_id = p.subject_id, a.semester_id = p.semester_id
         ');
 
         // Drop planning_id

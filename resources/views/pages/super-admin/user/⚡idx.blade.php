@@ -137,9 +137,9 @@ new #[Layout('layouts.super-admin')] class extends Component
         return [
             'users' => User::with(['roles', 'client.university'])
                 ->when($this->search, fn($q) => $q
-                    ->where('name', 'ilike', "%{$this->search}%")
-                    ->orWhere('email', 'ilike', "%{$this->search}%")
-                    ->orWhere('sso', 'ilike', "%{$this->search}%"))
+                    ->where('name', 'like', "%{$this->search}%")
+                    ->orWhere('email', 'like', "%{$this->search}%")
+                    ->orWhere('sso', 'like', "%{$this->search}%"))
                 ->paginate(15)
                 ->through(fn($u) => tap($u, fn($item) => [
                     $item->role_names  = $u->roles->pluck('name')->implode(', ') ?: '-',

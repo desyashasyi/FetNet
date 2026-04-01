@@ -128,8 +128,8 @@ new #[Layout('layouts.program')] class extends Component
 
         $options = Teacher::whereIn('program_id', $clusterIds)
             ->where(fn($q) => $q
-                ->where('name', 'ilike', "%{$value}%")
-                ->orWhere('code', 'ilike', "%{$value}%")
+                ->where('name', 'like', "%{$value}%")
+                ->orWhere('code', 'like', "%{$value}%")
                 ->orWhere('id', $this->teacherId))
             ->orderBy('name')->limit(15)->get()
             ->map(fn($t) => ['id' => $t->id, 'name' => "[{$t->code}] {$t->name}"])
@@ -138,8 +138,8 @@ new #[Layout('layouts.program')] class extends Component
         if (! empty($guestIds)) {
             $guests = Teacher::whereIn('id', $guestIds)
                 ->where(fn($q) => $q
-                    ->where('name', 'ilike', "%{$value}%")
-                    ->orWhere('code', 'ilike', "%{$value}%")
+                    ->where('name', 'like', "%{$value}%")
+                    ->orWhere('code', 'like', "%{$value}%")
                     ->orWhere('id', $this->teacherId))
                 ->orderBy('name')->limit(15)->get()
                 ->map(fn($t) => ['id' => $t->id, 'name' => "[{$t->code}] {$t->name} (guest)"])

@@ -114,8 +114,8 @@ new #[Layout('layouts.super-admin')] class extends Component
         return [
             'faculties' => Faculty::with('university')
                 ->when($this->search, fn($q) => $q
-                    ->where('code', 'ilike', "%{$this->search}%")
-                    ->orWhere('name', 'ilike', "%{$this->search}%"))
+                    ->where('code', 'like', "%{$this->search}%")
+                    ->orWhere('name', 'like', "%{$this->search}%"))
                 ->paginate(10)
                 ->through(fn($f) => tap($f, fn($item) =>
                     $item->university_name = $f->university?->name ?? '-'

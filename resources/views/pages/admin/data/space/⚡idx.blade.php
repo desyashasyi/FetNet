@@ -81,9 +81,10 @@ new #[Layout('layouts.admin')] class extends Component
         if (! $client) return;
 
         $this->buildingOptions = Building::where('client_id', $client->id)
-            ->orderBy('name')->limit(30)
-            ->get(['id', 'name', 'code'])
-            ->map(fn($b) => ['id' => $b->id, 'name' => $b->code ? "[{$b->code}] {$b->name}" : $b->name])
+            ->orderByRaw('name REGEXP "^[A-Za-z]" DESC, name')
+            ->limit(30)
+            ->get(['id', 'name'])
+            ->map(fn($b) => ['id' => $b->id, 'name' => $b->name])
             ->toArray();
 
         $this->facultyOptions = Faculty::when($client->university_id, fn($q) => $q->where('university_id', $client->university_id))
@@ -115,10 +116,11 @@ new #[Layout('layouts.admin')] class extends Component
 
         $this->buildingOptions = Building::where('client_id', $client->id)
             ->where(fn($q) => $q
-                ->where('name', 'ilike', "%{$value}%")
-                ->orWhere('code', 'ilike', "%{$value}%"))
-            ->orderBy('name')->limit(30)->get(['id', 'name', 'code'])
-            ->map(fn($b) => ['id' => $b->id, 'name' => $b->code ? "[{$b->code}] {$b->name}" : $b->name])
+                ->where('name', 'like', "%{$value}%")
+                ->orWhere('code', 'like', "%{$value}%"))
+            ->orderByRaw('name REGEXP "^[A-Za-z]" DESC, name')
+            ->limit(30)->get(['id', 'name'])
+            ->map(fn($b) => ['id' => $b->id, 'name' => $b->name])
             ->toArray();
     }
 
@@ -400,8 +402,8 @@ new #[Layout('layouts.admin')] class extends Component
                 ->where('fetnet_space.client_id', $clientId)
                 ->when($this->filterBuildingId, fn($q) => $q->where('building_id', $this->filterBuildingId))
                 ->when($this->search, fn($q) => $q
-                    ->where('fetnet_space.name', 'ilike', "%{$this->search}%")
-                    ->orWhere('fetnet_space.code', 'ilike', "%{$this->search}%"))
+                    ->where('fetnet_space.name', 'like', "%{$this->search}%")
+                    ->orWhere('fetnet_space.code', 'like', "%{$this->search}%"))
                 ->when($this->sortBy['column'] === 'name',           fn($q) => $q->orderBy('fetnet_space.name', $this->sortBy['direction']))
                 ->when($this->sortBy['column'] === 'type_label',     fn($q) => $q->leftJoin('fetnet_space_type as st', 'fetnet_space.type_id', '=', 'st.id')->orderBy('st.name', $this->sortBy['direction'])->select('fetnet_space.*'))
                 ->when($this->sortBy['column'] === 'building_label', fn($q) => $q->leftJoin('fetnet_building as fb', 'fetnet_space.building_id', '=', 'fb.id')->orderBy('fb.name', $this->sortBy['direction'])->select('fetnet_space.*'))
@@ -409,9 +411,7 @@ new #[Layout('layouts.admin')] class extends Component
                 ->paginate(15)
                 ->through(fn($s) => tap($s, fn($item) => [
                     $item->type_label     = $s->type?->code ?? '—',
-                    $item->building_label = $s->building
-                        ? ($s->building->code ? "[{$s->building->code}] {$s->building->name}" : $s->building->name)
-                        : '—',
+                    $item->building_label = $s->building?->name ?? '—',
                 ]))
             : collect();
 

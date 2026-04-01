@@ -16,7 +16,7 @@ return new class extends Migration
             $table->integer('value');
             $table->timestamps();
 
-            $table->unique(['program_id', 'teacher_id', 'constraint_type']);
+            $table->unique(['program_id', 'teacher_id', 'constraint_type'], 'ftc_program_teacher_type_unique');
         });
     }
 

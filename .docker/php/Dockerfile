@@ -28,19 +28,21 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     libjpeg-dev \
     libfreetype6-dev \
+    libicu-dev \
+    libonig-dev \
     fet \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install PHP Extensions via Helper Script
-# This replaces raw pecl commands and manually installing libraries
-ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
-RUN chmod +x /usr/local/bin/install-php-extensions && \
-    install-php-extensions gd pdo pdo_pgsql pgsql opcache bcmath sockets pcntl zip redis intl
+# 2. Install PHP Extensions
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+        gd pdo pdo_mysql opcache bcmath sockets pcntl zip intl \
+    && pecl install redis \
+    && docker-php-ext-enable redis
 
 # 3. Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g npm
+    && apt-get install -y nodejs
 
 # 4. Setup Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -64,8 +66,8 @@ ENTRYPOINT ["/entrypoint.sh"]
 # --- STAGE: DEV ---
 FROM base AS dev
 
-# Install XDebug via the same helper script for reliability
-RUN install-php-extensions xdebug
+# Install XDebug
+RUN pecl install xdebug && docker-php-ext-enable xdebug
 
 RUN echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
     && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \

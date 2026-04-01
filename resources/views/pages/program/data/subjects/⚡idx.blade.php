@@ -380,21 +380,19 @@ new #[Layout('layouts.program')] class extends Component
     {
         $program = $this->program();
         return [
-            'subjects' => $program
-                ? Subject::with(['curriculumYear', 'specialization', 'type'])
-                    ->where('program_id', $program->id)
+            'subjects' => Subject::with(['curriculumYear', 'specialization', 'type'])
+                    ->when($program, fn($q) => $q->where('program_id', $program->id), fn($q) => $q->whereRaw('0=1'))
                     ->when($this->filterYear, fn($q) => $q->where('curriculum_year_id', $this->filterYear))
                     ->when($this->search, fn($q) => $q
-                        ->where('name', 'ilike', "%{$this->search}%")
-                        ->orWhere('code', 'ilike', "%{$this->search}%"))
+                        ->where('name', 'like', "%{$this->search}%")
+                        ->orWhere('code', 'like', "%{$this->search}%"))
                     ->orderBy('semester')->orderBy('code')
                     ->paginate(15)
                     ->through(fn($s) => tap($s, fn($item) => [
                         $item->curriculum_yr     = $s->curriculumYear?->year ?? '—',
                         $item->specialization_nm = $s->specialization?->code ?? '—',
                         $item->type_nm           = $s->type?->code ?? '—',
-                    ]))
-                : collect(),
+                    ])),
         ];
     }
 }; ?>

@@ -117,12 +117,14 @@ new #[Layout('layouts.admin')] class extends Component
         $this->modal = false;
     }
 
-    public function setActive(int $ayId): void
+    public function setActive(int $semesterId): void
     {
         $client = $this->client();
-        AcademicYear::where('client_id', $client->id)->update(['is_active' => false]);
-        AcademicYear::find($ayId)?->update(['is_active' => true]);
-        $this->success('Active academic year updated.', position: 'toast-top toast-center');
+        // Deactivate all semesters under this client
+        Semester::whereHas('academicYear', fn($q) => $q->where('client_id', $client->id))
+            ->update(['is_active' => false]);
+        Semester::find($semesterId)?->update(['is_active' => true]);
+        $this->success('Active semester updated.', position: 'toast-top toast-center');
     }
 
     public function confirmDelete(int $id): void
@@ -160,9 +162,8 @@ new #[Layout('layouts.admin')] class extends Component
                 ->orderBy('semester')
                 ->get()
                 ->map(fn($s) => tap($s, fn($item) => [
-                    $item->ay_label  = $s->academicYear?->label ?? ($s->year . '/'. ($s->year + 1)),
-                    $item->ay_active = (bool) $s->academicYear?->is_active,
-                    $item->ay_id     = $s->academic_year_id,
+                    $item->ay_label = $s->academicYear?->label ?? ($s->year . '/'. ($s->year + 1)),
+                    $item->ay_id    = $s->academic_year_id,
                 ]))
             : collect();
 
@@ -193,22 +194,19 @@ new #[Layout('layouts.admin')] class extends Component
         <x-table :striped="true" :headers="$headers" :rows="$semesters" container-class="overflow-hidden" class="table-fixed">
 
             @scope('cell_ay_label', $row)
-                <div class="flex items-center gap-2">
-                    <span class="font-medium">{{ $row->ay_label }}</span>
-                    @if($row->ay_active)
-                        <x-badge value="Active" class="badge-success badge-sm" />
-                    @endif
-                </div>
-                @if(! $row->ay_active)
-                    <button wire:click="setActive({{ $row->ay_id }})"
-                            class="text-xs text-primary hover:underline mt-0.5">Set active</button>
-                @endif
+                <span class="font-medium">{{ $row->ay_label }}</span>
             @endscope
 
             @scope('cell_name', $row)
-                <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="font-medium text-sm">{{ $row->name ?? ($row->semester == 1 ? 'Odd' : 'Even') }}</span>
-                    <x-badge value="{{ $row->semester == 1 ? 'Odd' : 'Even' }}" class="badge-neutral badge-xs ml-1" />
+                    <x-badge value="{{ $row->semester == 1 ? 'Odd' : 'Even' }}" class="badge-neutral badge-xs" />
+                    @if($row->is_active)
+                        <x-badge value="Active" class="badge-success badge-xs" />
+                    @else
+                        <button wire:click="setActive({{ $row->id }})"
+                                class="text-xs text-primary hover:underline">Set active</button>
+                    @endif
                 </div>
             @endscope
 

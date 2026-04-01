@@ -9,8 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('fetnet_teacher_constraint', function (Blueprint $table) {
+            // Add standalone indexes before dropping composite unique (MariaDB FK requirement)
+            $table->index('program_id', 'ftc_program_id_index');
+            $table->index('teacher_id', 'ftc_teacher_id_index');
             // Drop old unique (program_id, teacher_id, constraint_type)
-            $table->dropUnique(['program_id', 'teacher_id', 'constraint_type']);
+            $table->dropUnique('ftc_program_teacher_type_unique');
 
             $table->foreignId('tag_id')->nullable()->after('value')
                 ->constrained('fetnet_activity_tag')->nullOnDelete();

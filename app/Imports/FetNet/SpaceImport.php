@@ -5,6 +5,7 @@ namespace App\Imports\FetNet;
 use App\Models\FetNet\Building;
 use App\Models\FetNet\Space;
 use App\Models\FetNet\SpaceType;
+use App\Support\CodeGenerator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -21,15 +22,21 @@ class SpaceImport implements ToCollection, WithHeadingRow
 
     public function collection(Collection $rows): void
     {
-        // Build mutable lookup maps (updated when new records are created)
-        $buildingMap = Building::where('client_id', $this->clientId)
-            ->get(['id', 'code'])
-            ->mapWithKeys(fn($b) => [strtolower(trim($b->code ?? '')) => $b->id])
-            ->toArray();
+        // Build mutable lookup maps — index by both code and name for flexible matching
+        $buildingMap = [];
+        Building::where('client_id', $this->clientId)->get(['id', 'name', 'code'])
+            ->each(function ($b) use (&$buildingMap) {
+                if ($b->code) $buildingMap[strtolower(trim($b->code))] = $b->id;
+                if ($b->name) $buildingMap[strtolower(trim($b->name))] = $b->id;
+            });
 
-        $typeMap = SpaceType::all(['id', 'code'])
-            ->mapWithKeys(fn($t) => [strtolower(trim($t->code ?? '')) => $t->id])
-            ->toArray();
+        // Index type by both code and name for flexible matching
+        $typeMap = [];
+        SpaceType::all(['id', 'code', 'name'])
+            ->each(function ($t) use (&$typeMap) {
+                if ($t->code) $typeMap[strtolower(trim($t->code))] = $t->id;
+                if ($t->name) $typeMap[strtolower(trim($t->name))] = $t->id;
+            });
 
         foreach ($rows as $row) {
             $name = trim($row['name'] ?? '');
@@ -38,38 +45,45 @@ class SpaceImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            $buildingCode = strtolower(trim($row['building_code'] ?? ''));
-            $typeCode     = strtolower(trim($row['type_code'] ?? ''));
+            // Support both _code columns and plain name columns as fallback
+            $buildingKey  = strtolower(trim($row['building_code'] ?? $row['building'] ?? ''));
+            $typeKey      = strtolower(trim($row['type_code'] ?? $row['type'] ?? ''));
             $capacity     = isset($row['capacity']) && is_numeric($row['capacity'])
                 ? (int) $row['capacity']
                 : null;
 
-            // Auto-register building if code given but not found
-            if ($buildingCode !== '' && ! isset($buildingMap[$buildingCode])) {
-                $rawCode = trim($row['building_code']);
+            // Auto-register building if key given but not found
+            if ($buildingKey !== '' && ! isset($buildingMap[$buildingKey])) {
+                $rawName  = trim($row['building_code'] ?? $row['building'] ?? $buildingKey);
                 $building = Building::firstOrCreate(
-                    ['code' => $rawCode, 'client_id' => $this->clientId],
-                    ['name' => $rawCode],
+                    ['client_id' => $this->clientId, 'name' => $rawName],
+                    ['code' => CodeGenerator::fromPhrase($rawName, 5)],
                 );
-                $buildingMap[$buildingCode] = $building->id;
+                $buildingMap[$buildingKey]                      = $building->id;
+                $buildingMap[strtolower(trim($building->name))] = $building->id;
+                if ($building->code) {
+                    $buildingMap[strtolower(trim($building->code))] = $building->id;
+                }
             }
 
-            // Auto-register space type if code given but not found
-            if ($typeCode !== '' && ! isset($typeMap[$typeCode])) {
-                $rawCode = trim($row['type_code']);
-                $type = SpaceType::firstOrCreate(
-                    ['code' => $rawCode],
-                    ['name' => Str::title($rawCode)],
+            // Auto-register space type if key given but not found
+            if ($typeKey !== '' && ! isset($typeMap[$typeKey])) {
+                $rawName = trim($row['type_code'] ?? $row['type'] ?? $typeKey);
+                $type    = SpaceType::firstOrCreate(
+                    ['code' => CodeGenerator::fromPhrase($rawName)],
+                    ['name' => Str::title($rawName)],
                 );
-                $typeMap[$typeCode] = $type->id;
+                $typeMap[$typeKey]                       = $type->id;
+                $typeMap[strtolower(trim($type->name))]  = $type->id;
+                $typeMap[strtolower(trim($type->code))]  = $type->id;
             }
 
             Space::withTrashed()->updateOrCreate(
                 ['name' => $name, 'client_id' => $this->clientId],
                 [
                     'code'        => trim($row['code'] ?? '') ?: null,
-                    'type_id'     => $typeCode ? ($typeMap[$typeCode] ?? null) : null,
-                    'building_id' => $buildingCode ? ($buildingMap[$buildingCode] ?? null) : null,
+                    'type_id'     => $typeKey ? ($typeMap[$typeKey] ?? null) : null,
+                    'building_id' => $buildingKey ? ($buildingMap[$buildingKey] ?? null) : null,
                     'floor'       => trim($row['floor'] ?? '') ?: null,
                     'capacity'    => $capacity,
                     'deleted_at'  => null,

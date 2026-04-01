@@ -87,7 +87,7 @@ new #[Layout('layouts.program')] class extends Component
 
         $this->studentOptions = Student::where('program_id', $program->id)
             ->where(fn($q) => $q
-                ->where('name', 'ilike', "%{$value}%")
+                ->where('name', 'like', "%{$value}%")
                 ->orWhere('id', $this->studentId))
             ->orderBy('name')->limit(20)->get()
             ->map(function ($s) {

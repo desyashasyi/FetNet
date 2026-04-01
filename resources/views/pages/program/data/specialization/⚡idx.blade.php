@@ -96,14 +96,12 @@ new #[Layout('layouts.program')] class extends Component
     {
         $program = $this->program();
         return [
-            'specializations' => $program
-                ? Specialization::where('program_id', $program->id)
+            'specializations' => Specialization::when($program, fn($q) => $q->where('program_id', $program->id), fn($q) => $q->whereRaw('0=1'))
                     ->when($this->search, fn($q) => $q
-                        ->where('name', 'ilike', "%{$this->search}%")
-                        ->orWhere('code', 'ilike', "%{$this->search}%"))
+                        ->where('name', 'like', "%{$this->search}%")
+                        ->orWhere('code', 'like', "%{$this->search}%"))
                     ->orderBy('code')
-                    ->paginate(10)
-                : collect(),
+                    ->paginate(10),
         ];
     }
 }; ?>

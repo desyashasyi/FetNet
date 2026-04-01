@@ -240,8 +240,8 @@ new #[Layout('layouts.program')] class extends Component
             ->when($this->semesterId, fn($q) => $q->whereHas('activityPlannings', fn($p) =>
                 $p->where('semester_id', $this->semesterId)->where('program_id', $program->id)))
             ->where(fn($q) => $q
-                ->where('name', 'ilike', "%{$value}%")
-                ->orWhere('code', 'ilike', "%{$value}%")
+                ->where('name', 'like', "%{$value}%")
+                ->orWhere('code', 'like', "%{$value}%")
                 ->orWhere('id', $this->subject_id))
             ->orderBy('code')->limit(15)->get()
             ->map(fn($s) => ['id' => $s->id, 'name' => "{$s->code} | {$s->name}"])
@@ -254,8 +254,8 @@ new #[Layout('layouts.program')] class extends Component
         if (! $program) { $this->teacherOptions = []; return; }
         $this->teacherOptions = Teacher::where('program_id', $program->id)
             ->where(fn($q) => $q
-                ->where('name', 'ilike', "%{$value}%")
-                ->orWhere('code', 'ilike', "%{$value}%")
+                ->where('name', 'like', "%{$value}%")
+                ->orWhere('code', 'like', "%{$value}%")
                 ->orWhereIn('id', $this->teacherIds))
             ->orderBy('name')->limit(15)->get()
             ->map(fn($t) => ['id' => $t->id, 'name' => ($t->code ? "{$t->code} | " : '') . $t->name])
@@ -269,7 +269,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->studentOptions = Student::where('program_id', $program->id)
             ->whereNotNull('parent_id')
             ->where(fn($q) => $q
-                ->where('name', 'ilike', "%{$value}%")
+                ->where('name', 'like', "%{$value}%")
                 ->orWhereIn('id', $this->studentIds))
             ->orderBy('name')->limit(15)->get()
             ->map(fn($s) => ['id' => $s->id, 'name' => $s->name])
@@ -447,8 +447,8 @@ new #[Layout('layouts.program')] class extends Component
                 ->orWhereHas('type', fn($q2) => $q2->where('is_theory', false)))
             ->when($this->spaceQuery, fn($q) => $q
                 ->where(fn($q2) => $q2
-                    ->where('name', 'ilike', "%{$this->spaceQuery}%")
-                    ->orWhere('code', 'ilike', "%{$this->spaceQuery}%")))
+                    ->where('name', 'like', "%{$this->spaceQuery}%")
+                    ->orWhere('code', 'like', "%{$this->spaceQuery}%")))
             ->with(['claims' => fn($q) => $q->where('program_id', $program->id)])
             ->orderBy('name')->limit(20)->get()
             ->map(fn($s) => [
@@ -648,37 +648,33 @@ new #[Layout('layouts.program')] class extends Component
     {
         $program = $this->program();
 
-        $subjects = $program
-            ? Subject::with(['activities' => fn($q) => $q
+        $subjects = Subject::with(['activities' => fn($q) => $q
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) =>
                     $p->where('semester_id', $this->semesterId)))
                 ->with(['teachers', 'type', 'students', 'subActivities'])
               ])
-                ->where('program_id', $program->id)
+                ->when($program, fn($q) => $q->where('program_id', $program->id), fn($q) => $q->whereRaw('0=1'))
                 ->when($this->semesterId, fn($q) => $q->whereHas('activityPlannings', fn($p) =>
-                    $p->where('semester_id', $this->semesterId)->where('program_id', $program->id)))
+                    $p->where('semester_id', $this->semesterId)->where('program_id', $program?->id)))
                 ->when($this->search, fn($q) => $q
-                    ->where('name', 'ilike', "%{$this->search}%")
-                    ->orWhere('code', 'ilike', "%{$this->search}%"))
+                    ->where('name', 'like', "%{$this->search}%")
+                    ->orWhere('code', 'like', "%{$this->search}%"))
                 ->orderBy('semester')->orderBy('code')
-                ->paginate(15)
-            : collect();
+                ->paginate(15);
 
-        $activities = ($program && $this->view === 'all')
-            ? Activity::with(['planning.subject', 'type', 'teachers', 'students'])
-                ->where('program_id', $program->id)
+        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students'])
+                ->when($program && $this->view === 'all', fn($q) => $q->where('program_id', $program->id), fn($q) => $q->whereRaw('0=1'))
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)))
                 ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
-                    fn($s) => $s->where('name', 'ilike', "%{$this->search}%")
-                                ->orWhere('code', 'ilike', "%{$this->search}%"))))
+                    fn($s) => $s->where('name', 'like', "%{$this->search}%")
+                                ->orWhere('code', 'like', "%{$this->search}%"))))
                 ->paginate(15)
                 ->through(fn($a) => tap($a, fn($item) => [
                     $item->subject_nm  = $a->planning?->subject?->code . ' — ' . $a->planning?->subject?->name,
                     $item->type_nm     = $a->type?->name ?? '-',
                     $item->teachers_nm = $a->teachers->pluck('code')->filter()->implode(', ') ?: '-',
                     $item->students_nm = $a->students->pluck('name')->implode(', ') ?: '-',
-                ]))
-            : collect();
+                ]));
 
         $myClaims = $program
             ? SpaceClaim::where('program_id', $program->id)

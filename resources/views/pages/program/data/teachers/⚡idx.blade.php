@@ -227,9 +227,9 @@ new #[Layout('layouts.program')] class extends Component
             ->whereNotIn('program_id', $ownIds)
             ->whereNotIn('id', $guestIds)
             ->where(fn($q) => $q
-                ->where('name',        'ilike', "%{$this->guestSearch}%")
-                ->orWhere('code',       'ilike', "%{$this->guestSearch}%")
-                ->orWhere('employee_id','ilike', "%{$this->guestSearch}%"))
+                ->where('name',        'like', "%{$this->guestSearch}%")
+                ->orWhere('code',       'like', "%{$this->guestSearch}%")
+                ->orWhere('employee_id','like', "%{$this->guestSearch}%"))
             ->orderBy('name')
             ->limit(20)
             ->get(['id', 'program_id', 'code', 'name', 'front_title', 'rear_title'])
@@ -326,13 +326,12 @@ new #[Layout('layouts.program')] class extends Component
 
         $guestHeaders = $headers; // same columns for guest table
 
-        $ownTeachers = $program
-            ? Teacher::with(['program:id,abbrev,name', 'guestPrograms:id,abbrev'])
-                ->whereIn('program_id', $ids)
+        $ownTeachers = Teacher::with(['program:id,abbrev,name', 'guestPrograms:id,abbrev'])
+                ->whereIn('program_id', $ids ?: [0])
                 ->when($this->search, fn($q) => $q
-                    ->where('name',         'ilike', "%{$this->search}%")
-                    ->orWhere('code',        'ilike', "%{$this->search}%")
-                    ->orWhere('employee_id', 'ilike', "%{$this->search}%"))
+                    ->where('name',         'like', "%{$this->search}%")
+                    ->orWhere('code',        'like', "%{$this->search}%")
+                    ->orWhere('employee_id', 'like', "%{$this->search}%"))
                 ->orderBy('name')
                 ->paginate(15)
                 ->through(fn($t) => tap($t, fn($item) => [
@@ -340,16 +339,15 @@ new #[Layout('layouts.program')] class extends Component
                     $item->study_program = $t->program?->abbrev ?? '-',
                     $item->program_name  = $t->program?->name  ?? '-',
                     $item->guest_abbrevs = $t->guestPrograms->pluck('abbrev')->toArray(),
-                ]))
-            : collect();
+                ]));
 
         $guestTeachers = $program
             ? $program->guestTeachers()
                 ->with('program:id,abbrev,name')
                 ->when($this->search, fn($q) => $q
-                    ->where('fetnet_teacher.name',         'ilike', "%{$this->search}%")
-                    ->orWhere('fetnet_teacher.code',        'ilike', "%{$this->search}%")
-                    ->orWhere('fetnet_teacher.employee_id', 'ilike', "%{$this->search}%"))
+                    ->where('fetnet_teacher.name',         'like', "%{$this->search}%")
+                    ->orWhere('fetnet_teacher.code',        'like', "%{$this->search}%")
+                    ->orWhere('fetnet_teacher.employee_id', 'like', "%{$this->search}%"))
                 ->orderBy('fetnet_teacher.name')
                 ->get()
                 ->map(fn($t) => tap($t, fn($item) => [

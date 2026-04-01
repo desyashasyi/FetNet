@@ -58,8 +58,8 @@ new #[Layout('layouts.admin')] class extends Component
 
         $this->programOptions = Program::where('client_id', $client->id)
             ->when($search, fn($q) => $q
-                ->where('name',   'ilike', "%{$search}%")
-                ->orWhere('abbrev', 'ilike', "%{$search}%"))
+                ->where('name',   'like', "%{$search}%")
+                ->orWhere('abbrev', 'like', "%{$search}%"))
             ->orderBy('abbrev')
             ->limit(30)
             ->get(['id', 'abbrev', 'name'])
@@ -208,21 +208,19 @@ new #[Layout('layouts.admin')] class extends Component
 
         $filterIds = $this->filterProgramId ? [$this->filterProgramId] : $ids;
 
-        $teachers = count($ids)
-            ? Teacher::with('program:id,abbrev,name')
-                ->whereIn('program_id', $filterIds)
-                ->when($this->search, fn($q) => $q
-                    ->where('name',         'ilike', "%{$this->search}%")
-                    ->orWhere('code',        'ilike', "%{$this->search}%")
-                    ->orWhere('employee_id', 'ilike', "%{$this->search}%"))
-                ->orderBy('name')
-                ->paginate(10)
-                ->through(fn($t) => tap($t, fn($item) => [
-                    $item->full_name     = $t->full_name,
-                    $item->study_program = $t->program?->abbrev ?? '-',
-                    $item->program_name  = $t->program?->name  ?? '-',
-                ]))
-            : collect();
+        $teachers = Teacher::with('program:id,abbrev,name')
+            ->whereIn('program_id', count($filterIds) ? $filterIds : [0])
+            ->when($this->search, fn($q) => $q
+                ->where('name',         'like', "%{$this->search}%")
+                ->orWhere('code',        'like', "%{$this->search}%")
+                ->orWhere('employee_id', 'like', "%{$this->search}%"))
+            ->orderBy('name')
+            ->paginate(10)
+            ->through(fn($t) => tap($t, fn($item) => [
+                $item->full_name     = $t->full_name,
+                $item->study_program = $t->program?->abbrev ?? '-',
+                $item->program_name  = $t->program?->name  ?? '-',
+            ]));
 
         return compact('headers', 'teachers');
     }

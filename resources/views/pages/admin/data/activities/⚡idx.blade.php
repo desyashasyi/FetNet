@@ -181,7 +181,7 @@ new #[Layout('layouts.admin')] class extends Component
 
         $this->assignBuildingOptions = Building::where('client_id', $client->id)
             ->orderBy('name')->get(['id', 'name', 'code'])
-            ->map(fn($b) => ['id' => $b->id, 'name' => $b->code ? "[{$b->code}] {$b->name}" : $b->name])
+            ->map(fn($b) => ['id' => $b->id, 'name' => $b->code ? "{$b->code} {$b->name}" : $b->name])
             ->toArray();
 
         $this->assignTypeOptions = SpaceType::where('is_theory', false)->orderBy('name')
@@ -293,32 +293,29 @@ new #[Layout('layouts.admin')] class extends Component
             ->mapWithKeys(fn($p) => [$p->id => $p->abbrev])
             ->toArray();
 
-        $subjects = (count($filterIds) && $this->semesterId)
-            ? Subject::with(['activities' => fn($q) => $q
+        $subjects = Subject::with(['activities' => fn($q) => $q
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) =>
                     $p->where('semester_id', $this->semesterId)))
                 ->with(['teachers', 'type', 'students', 'subActivities'])
               ])
-                ->whereIn('program_id', $filterIds)
+                ->when(count($filterIds) && $this->semesterId, fn($q) => $q->whereIn('program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
                 ->when($this->semesterId, fn($q) => $q->whereHas('activityPlannings', fn($p) =>
                     $p->where('semester_id', $this->semesterId)->whereIn('program_id', $filterIds)))
                 ->when($this->search, fn($q) => $q
-                    ->where('name', 'ilike', "%{$this->search}%")
-                    ->orWhere('code', 'ilike', "%{$this->search}%"))
+                    ->where('name', 'like', "%{$this->search}%")
+                    ->orWhere('code', 'like', "%{$this->search}%"))
                 ->orderBy('semester')->orderBy('code')
                 ->paginate(15)
                 ->through(fn($s) => tap($s, fn($item) => [
                     $item->program_abbrev = $programMap[$s->program_id] ?? '?',
-                ]))
-            : collect();
+                ]));
 
-        $activities = (count($filterIds) && $this->view === 'all')
-            ? Activity::with(['planning.subject', 'type', 'teachers', 'students', 'spaces'])
-                ->whereIn('program_id', $filterIds)
+        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students', 'spaces'])
+                ->when(count($filterIds) && $this->view === 'all', fn($q) => $q->whereIn('program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)))
                 ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
-                    fn($s) => $s->where('name', 'ilike', "%{$this->search}%")
-                                ->orWhere('code', 'ilike', "%{$this->search}%"))))
+                    fn($s) => $s->where('name', 'like', "%{$this->search}%")
+                                ->orWhere('code', 'like', "%{$this->search}%"))))
                 ->paginate(15)
                 ->through(fn($a) => tap($a, fn($item) => [
                     $item->subject_nm     = $a->planning?->subject?->code . ' — ' . $a->planning?->subject?->name,
@@ -327,8 +324,7 @@ new #[Layout('layouts.admin')] class extends Component
                     $item->students_nm    = $a->students->pluck('name')->implode(', ') ?: '-',
                     $item->program_abbrev = $programMap[$a->program_id] ?? '?',
                     $item->spaces_count   = $a->spaces->count(),
-                ]))
-            : collect();
+                ]));
 
         // Spaces for the assign modal
         $assignPerPage = 10;
@@ -377,7 +373,7 @@ new #[Layout('layouts.admin')] class extends Component
             <x-select wire:model.live="semesterId" :options="$semesterOptions"
                       placeholder="Semester" class="w-48" />
             @endif
-            <div class="w-64">
+            <div class="w-80">
                 <x-choices single searchable
                            wire:model.live="filterProgramId"
                            :options="$programOptions"
@@ -455,10 +451,16 @@ new #[Layout('layouts.admin')] class extends Component
             @endscope
 
             @scope('cell_action', $row)
-                <x-button icon="o-building-office" class="btn-ghost btn-xs"
-                          wire:click="openAssignSpace({{ $row->id }})">
-                    Space @if($row->spaces_count > 0)<span class="ml-1 font-bold text-primary">{{ $row->spaces_count }}</span>@endif
-                </x-button>
+                <div class="flex items-center justify-end gap-1">
+                    @if($row->spaces_count > 0)
+                    <x-button icon="o-eye" class="btn-ghost btn-xs text-primary"
+                              wire:click="openDetail({{ $row->id }})" tooltip="View assigned spaces" />
+                    @endif
+                    <x-button icon="o-building-office" class="btn-ghost btn-xs"
+                              wire:click="openAssignSpace({{ $row->id }})">
+                        Space @if($row->spaces_count > 0)<span class="ml-1 font-bold text-primary">{{ $row->spaces_count }}</span>@endif
+                    </x-button>
+                </div>
             @endscope
         </x-table>
     </x-card>

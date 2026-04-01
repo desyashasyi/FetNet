@@ -6,6 +6,7 @@ use App\Models\FetNet\CurriculumYear;
 use App\Models\FetNet\Specialization;
 use App\Models\FetNet\Subject;
 use App\Models\FetNet\SubjectType;
+use App\Support\CodeGenerator;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -27,11 +28,20 @@ class SubjectImport implements ToCollection, WithHeadingRow
         $curriculumYears   = CurriculumYear::where('program_id', $this->programId)
             ->get()->keyBy(fn($y) => strtolower(trim($y->year)));
 
-        $specializations   = Specialization::where('program_id', $this->programId)
-            ->get()->keyBy(fn($s) => strtolower(trim($s->code)));
+        // Index by both code and name for flexible matching
+        $specializations = [];
+        Specialization::where('program_id', $this->programId)->get()
+            ->each(function ($s) use (&$specializations) {
+                if ($s->code) $specializations[strtolower(trim($s->code))] = $s;
+                if ($s->name) $specializations[strtolower(trim($s->name))] = $s;
+            });
 
-        $subjectTypes      = SubjectType::where('program_id', $this->programId)
-            ->get()->keyBy(fn($t) => strtolower(trim($t->code)));
+        $subjectTypes = [];
+        SubjectType::where('program_id', $this->programId)->get()
+            ->each(function ($t) use (&$subjectTypes) {
+                if ($t->code) $subjectTypes[strtolower(trim($t->code))] = $t;
+                if ($t->name) $subjectTypes[strtolower(trim($t->name))] = $t;
+            });
 
         foreach ($rows as $row) {
             $code = trim($row['code'] ?? '');
@@ -64,10 +74,12 @@ class SubjectImport implements ToCollection, WithHeadingRow
                 $key = strtolower($specRaw);
                 if (! isset($specializations[$key])) {
                     $spec = Specialization::firstOrCreate(
-                        ['program_id' => $this->programId, 'code' => strtoupper($specRaw)],
-                        ['name' => strtoupper($specRaw)]
+                        ['program_id' => $this->programId, 'code' => CodeGenerator::fromPhrase($specRaw)],
+                        ['name' => $specRaw]
                     );
-                    $specializations[$key] = $spec;
+                    $specializations[$key]                         = $spec;
+                    $specializations[strtolower(trim($spec->code))] = $spec;
+                    $specializations[strtolower(trim($spec->name))] = $spec;
                 }
                 $specializationId = $specializations[$key]->id;
             }
@@ -79,10 +91,12 @@ class SubjectImport implements ToCollection, WithHeadingRow
                 $key = strtolower($typeRaw);
                 if (! isset($subjectTypes[$key])) {
                     $st = SubjectType::firstOrCreate(
-                        ['program_id' => $this->programId, 'code' => strtoupper($typeRaw)],
-                        ['name' => strtoupper($typeRaw)]
+                        ['program_id' => $this->programId, 'code' => CodeGenerator::fromPhrase($typeRaw)],
+                        ['name' => $typeRaw]
                     );
-                    $subjectTypes[$key] = $st;
+                    $subjectTypes[$key]                          = $st;
+                    $subjectTypes[strtolower(trim($st->code))]   = $st;
+                    $subjectTypes[strtolower(trim($st->name))]   = $st;
                 }
                 $typeId = $subjectTypes[$key]->id;
             }

@@ -100,8 +100,8 @@ new #[Layout('layouts.super-admin')] class extends Component
         return [
             'universities' => University::query()
                 ->when($this->search, fn($q) => $q
-                    ->where('code', 'ilike', "%{$this->search}%")
-                    ->orWhere('name', 'ilike', "%{$this->search}%"))
+                    ->where('code', 'like', "%{$this->search}%")
+                    ->orWhere('name', 'like', "%{$this->search}%"))
                 ->paginate(10),
         ];
     }

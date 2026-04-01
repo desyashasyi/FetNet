@@ -334,7 +334,7 @@ new #[Layout('layouts.super-admin')] class extends Component
         return [
             'clients' => Client::with(['user', 'university', 'faculty', 'level'])
                 ->when($this->search, fn($q) => $q->whereHas('user',
-                    fn($u) => $u->where('name', 'ilike', "%{$this->search}%")
+                    fn($u) => $u->where('name', 'like', "%{$this->search}%")
                 ))
                 ->paginate(5)
                 ->through(fn($c) => tap($c, fn($item) => [

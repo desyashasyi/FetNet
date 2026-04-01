@@ -221,18 +221,16 @@ new #[Layout('layouts.admin')] class extends Component
         $client = $this->client();
 
         return [
-            'programs' => $client
-                ? Program::with(['user', 'cluster.base'])
-                    ->where('client_id', $client->id)
+            'programs' => Program::with(['user', 'cluster.base'])
+                    ->when($client, fn($q) => $q->where('client_id', $client->id), fn($q) => $q->whereRaw('0=1'))
                     ->when($this->search, fn($q) => $q
-                        ->where('name', 'ilike', "%{$this->search}%")
-                        ->orWhere('abbrev', 'ilike', "%{$this->search}%"))
+                        ->where('name', 'like', "%{$this->search}%")
+                        ->orWhere('abbrev', 'like', "%{$this->search}%"))
                     ->paginate(10)
                     ->through(fn($p) => tap($p, fn($item) => [
                         $item->user_email   = $p->user?->email ?? '-',
                         $item->cluster_name = $p->cluster?->base?->code ?? '-',
-                    ]))
-                : collect(),
+                    ])),
         ];
     }
 }; ?>

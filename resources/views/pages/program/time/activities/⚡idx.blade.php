@@ -51,7 +51,7 @@ new #[Layout('layouts.program')] class extends Component
             ->whereHas('planning', fn($q) => $q->where('semester_id', $this->semesterId))
             ->with(['planning.subject', 'teachers', 'students', 'type'])
             ->when($value, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
-                fn($s) => $s->where('name', 'ilike', "%{$value}%")->orWhere('code', 'ilike', "%{$value}%")
+                fn($s) => $s->where('name', 'like', "%{$value}%")->orWhere('code', 'like', "%{$value}%")
             )))
             ->orderBy('id')
             ->limit(30)

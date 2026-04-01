@@ -41,7 +41,10 @@ class TeachersImportJob implements ShouldQueue
         $importer = new TeacherImport($programMap, $this->programId);
         Excel::import($importer, $this->filePath);
 
-        $message = "Import done: {$importer->imported} imported, {$importer->skipped} skipped.";
+        $parts   = ["imported: {$importer->imported}"];
+        if ($importer->asGuest  > 0) $parts[] = "added as guest: {$importer->asGuest}";
+        if ($importer->skipped  > 0) $parts[] = "skipped: {$importer->skipped}";
+        $message = 'Import done — ' . implode(', ', $parts) . '.';
 
         if (count($importer->codeAutoGen) > 0) {
             $codes    = implode(', ', $importer->codeAutoGen);
