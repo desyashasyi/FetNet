@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\FetNet\Client;
+use App\Models\FetNet\Program;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -18,11 +19,17 @@ class User extends Authenticatable
         'password',
         'sso',
         'client_id',
+        'program_id',
     ];
 
     public function client()
     {
         return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(Program::class, 'program_id');
     }
 
     protected $hidden = [

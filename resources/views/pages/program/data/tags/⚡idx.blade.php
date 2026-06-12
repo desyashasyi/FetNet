@@ -83,11 +83,10 @@ new #[Layout('layouts.program')] class extends Component
 }; ?>
 
 <div>
-    <x-header title="Activity Tags" subtitle="Tags used to group activities for time/space constraints" separator>
-        <x-slot:actions>
-            <x-button label="Add Tag" icon="o-plus" class="btn-primary" wire:click="openCreate" />
-        </x-slot:actions>
-    </x-header>
+    <x-header title="Activity Tags" subtitle="Tags used to group activities for time/space constraints" separator />
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <x-button label="Add Tag" icon="o-plus" class="btn-primary" wire:click="openCreate" />
+    </div>
 
     <x-card>
         <x-table :striped="true" :headers="$headers" :rows="$tags" container-class="overflow-hidden">

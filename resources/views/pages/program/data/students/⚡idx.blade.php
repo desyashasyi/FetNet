@@ -3,33 +3,17 @@
 use App\Livewire\Concerns\HasProgramSemester;
 use App\Models\FetNet\Program;
 use App\Models\FetNet\Student;
-use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
+use Livewire\Component;
 use Mary\Traits\Toast;
 
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast, HasProgramSemester;
 
-    // Batch modal
-    public bool   $batchModal    = false;
-    public bool   $editBatch     = false;
-    public ?int   $batchId       = null;
-    public string $batchName     = '';
-    public string $batchBatch    = '';
-    public int    $batchCount    = 0;
-
-    // Group modal
-    public bool   $groupModal    = false;
-    public bool   $editGroup     = false;
-    public ?int   $groupId       = null;
-    public ?int   $groupParentId = null;
-    public string $groupName     = '';
-    public int    $groupCount    = 0;
-
-    // Delete
-    public bool  $delModal  = false;
-    public ?int  $deleteId  = null;
+    public bool $delModal = false;
+    public ?int $deleteId = null;
 
     private function program(): ?Program
     {
@@ -42,146 +26,50 @@ new #[Layout('layouts.program')] class extends Component
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
-    // ── Batch (root level) ──────────────────────────────────────────────────
+    public function openCreateBatch(): void { $this->dispatch('open-batch-create'); }
+    public function openEditBatch(int $id): void { $this->dispatch('open-batch-edit', id: $id); }
+    public function openAddGroup(int $parentId): void { $this->dispatch('open-group-create', parentId: $parentId); }
+    public function openEditGroup(int $id): void { $this->dispatch('open-group-edit', id: $id); }
 
-    public function openCreateBatch(): void
-    {
-        $this->reset(['batchName', 'batchBatch', 'batchCount', 'batchId']);
-        $this->editBatch  = false;
-        $this->batchModal = true;
-    }
-
-    public function openEditBatch(int $id): void
-    {
-        $s                = Student::findOrFail($id);
-        $this->batchId    = $id;
-        $this->batchName  = $s->name;
-        $this->batchBatch = $s->batch ?? '';
-        $this->batchCount = $s->number_of_student;
-        $this->editBatch  = true;
-        $this->batchModal = true;
-    }
-
-    public function saveBatch(): void
-    {
-        $this->validate([
-            'batchName'  => 'required',
-            'batchBatch' => 'nullable',
-            'batchCount' => 'required|integer|min:0',
-        ]);
-
-        $data = [
-            'name'              => $this->batchName,
-            'batch'             => $this->batchBatch ?: null,
-            'number_of_student' => $this->batchCount,
-        ];
-
-        if ($this->editBatch && $this->batchId) {
-            Student::findOrFail($this->batchId)->update($data);
-            $this->success('Batch updated.', position: 'toast-top toast-center');
-        } else {
-            Student::create(array_merge($data, [
-                'program_id' => $this->program()->id,
-                'parent_id'  => null,
-            ]));
-            $this->success('Batch added.', position: 'toast-top toast-center');
-        }
-
-        $this->batchModal = false;
-    }
-
-    // ── Group / Sub-group ───────────────────────────────────────────────────
-
-    public function openAddGroup(int $parentId): void
-    {
-        $this->reset(['groupName', 'groupCount', 'groupId']);
-        $this->groupParentId = $parentId;
-        $this->editGroup     = false;
-        $this->groupModal    = true;
-    }
-
-    public function openEditGroup(int $id): void
-    {
-        $g                   = Student::findOrFail($id);
-        $this->groupId       = $id;
-        $this->groupParentId = $g->parent_id;
-        $this->groupName     = $g->name;
-        $this->groupCount    = $g->number_of_student;
-        $this->editGroup     = true;
-        $this->groupModal    = true;
-    }
-
-    public function saveGroup(): void
-    {
-        $this->validate([
-            'groupName'  => 'required',
-            'groupCount' => 'required|integer|min:0',
-        ]);
-
-        $data = [
-            'name'              => $this->groupName,
-            'number_of_student' => $this->groupCount,
-            'parent_id'         => $this->groupParentId,
-        ];
-
-        if ($this->editGroup && $this->groupId) {
-            Student::findOrFail($this->groupId)->update($data);
-            $this->success('Group updated.', position: 'toast-top toast-center');
-        } else {
-            Student::create(array_merge($data, ['program_id' => $this->program()->id]));
-            $this->success('Group added.', position: 'toast-top toast-center');
-        }
-
-        $this->groupModal = false;
-    }
-
-    // ── Delete ──────────────────────────────────────────────────────────────
-
-    public function confirmDelete(int $id): void
-    {
-        $this->deleteId = $id;
-        $this->delModal = true;
-    }
+    public function confirmDelete(int $id): void { $this->deleteId = $id; $this->delModal = true; }
 
     public function delete(): void
     {
         Student::findOrFail($this->deleteId)->delete();
-        $this->delModal = false;
-        $this->deleteId = null;
+        $this->delModal = false; $this->deleteId = null;
         $this->warning('Deleted (including sub-groups).', position: 'toast-top toast-center');
     }
+
+    #[On('student-changed')]
+    public function refreshFromChild(): void {}
 
     public function with(): array
     {
         $program = $this->program();
         return [
             'batches' => $program
-                ? Student::where('program_id', $program->id)
-                    ->whereNull('parent_id')
-                    ->with(['children.children'])
-                    ->orderBy('batch')
-                    ->orderBy('name')
-                    ->get()
+                ? Student::where('program_id', $program->id)->whereNull('parent_id')
+                    ->with(['children.children'])->orderBy('batch')->orderBy('name')->get()
                 : collect(),
         ];
     }
 }; ?>
 
 <div>
-    <x-header title="Students" subtitle="Manage student batches & groups" separator>
-        <x-slot:actions>
-            @if(count($academicYearOptions))
+    <x-header title="Students" subtitle="Manage student batches & groups" separator />
+
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        @if(count($academicYearOptions))
             <x-select wire:model.live="academicYearId" :options="$academicYearOptions"
                       placeholder="Academic Year" class="w-36" />
-            @endif
-            @if(count($semesterOptions))
+        @endif
+        @if(count($semesterOptions))
             <x-select wire:model.live="semesterId" :options="$semesterOptions"
                       placeholder="Semester" class="w-48" />
-            @endif
-            <div class="w-px h-6 bg-base-content/20 self-center"></div>
-            <x-button label="Add Batch" icon="o-plus" class="btn-primary" wire:click="openCreateBatch" />
-        </x-slot:actions>
-    </x-header>
+        @endif
+        <div class="w-px h-6 bg-base-content/20 self-center"></div>
+        <x-button label="Add Batch" icon="o-plus" class="btn-primary" wire:click="openCreateBatch" />
+    </div>
 
     @forelse($batches as $batch)
         <x-card class="mb-3">
@@ -257,52 +145,13 @@ new #[Layout('layouts.program')] class extends Component
         </x-card>
     @endforelse
 
-    {{-- Batch Modal --}}
-    <x-modal wire:model="batchModal" :title="$editBatch ? 'Edit Batch' : 'Add Batch'"
-             separator class="modal-bottom" box-class="!max-w-md mx-auto !rounded-t-2xl !mb-14">
-        <x-form wire:submit="saveBatch" class="space-y-4">
-            <input type="text" class="w-0 h-0 opacity-0 absolute pointer-events-none" autofocus />
-            <x-input label="Batch Name" wire:model="batchName" placeholder="2021 Regular" required />
-            <div class="grid grid-cols-3 gap-3">
-                <x-input label="Year" wire:model="batchBatch" placeholder="2021" />
-                <div class="col-span-2">
-                    <x-input label="Total Students" wire:model="batchCount" type="number" min="0" />
-                </div>
-            </div>
-            <x-slot:actions>
-                <x-button label="Cancel" icon="o-x-circle"     wire:click="$set('batchModal', false)" />
-                <x-button label="Save"   icon="o-check-circle" type="submit" class="btn-primary" spinner="saveBatch" />
-            </x-slot:actions>
-        </x-form>
-    </x-modal>
+    <livewire:pages::program.data.students.student-form-sheet />
 
-    {{-- Group Modal --}}
-    <x-modal wire:model="groupModal" :title="$editGroup ? 'Edit Group' : 'Add Group'"
-             separator class="modal-bottom" box-class="!max-w-sm mx-auto !rounded-t-2xl !mb-14">
-        <x-form wire:submit="saveGroup" class="space-y-4">
-            <input type="text" class="w-0 h-0 opacity-0 absolute pointer-events-none" autofocus />
-            <div class="grid grid-cols-3 gap-3">
-                <div class="col-span-2">
-                    <x-input label="Group Name" wire:model="groupName" placeholder="Group A" required />
-                </div>
-                <x-input label="# Students" wire:model="groupCount" type="number" min="0" />
-            </div>
-            <x-slot:actions>
-                <x-button label="Cancel" icon="o-x-circle"     wire:click="$set('groupModal', false)" />
-                <x-button label="Save"   icon="o-check-circle" type="submit" class="btn-primary" spinner="saveGroup" />
-            </x-slot:actions>
-        </x-form>
-    </x-modal>
-
-    {{-- Delete Confirm --}}
-    <x-modal wire:model="delModal" title="Delete"
-             box-class="!max-w-sm">
+    <x-modal wire:model="delModal" title="Delete" box-class="!max-w-sm">
         <p class="text-base-content/70 text-sm">Delete this item? All sub-groups and activity assignments will also be removed.</p>
         <x-slot:actions>
             <x-button label="Cancel" icon="o-x-circle" wire:click="$set('delModal', false)" />
             <x-button label="Delete" icon="o-trash"    class="btn-error" wire:click="delete" />
         </x-slot:actions>
     </x-modal>
-
-    <x-toast />
 </div>

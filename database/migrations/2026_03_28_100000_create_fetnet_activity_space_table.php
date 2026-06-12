@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('activity_id')->constrained('fetnet_activity')->cascadeOnDelete();
             $table->foreignId('space_id')->constrained('fetnet_space')->cascadeOnDelete();
+            $table->string('assigned_by')->default('client');
             $table->unique(['activity_id', 'space_id']);
             $table->timestamps();
         });

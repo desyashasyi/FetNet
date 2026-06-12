@@ -69,6 +69,12 @@ class CasController extends Controller
         try {
             $response = Http::withOptions(['verify' => false])->get($validateUrl);
 
+            logger()->info('CAS validate', [
+                'url'    => $validateUrl,
+                'status' => $response->status(),
+                'body'   => substr($response->body(), 0, 500),
+            ]);
+
             if (! $response->successful()) {
                 return null;
             }
@@ -107,7 +113,7 @@ class CasController extends Controller
             'name' => $isStaff ? $ssoId : ('s' . $ssoId),
         ]);
 
-        $user->assignRole($isStaff ? 'admin' : 'user');
+        $user->assignRole($isStaff ? 'client' : 'program');
 
         return $user;
     }
@@ -121,8 +127,8 @@ class CasController extends Controller
             return redirect()->route('super-admin.idx');
         }
 
-        if ($user->hasRole('admin')) {
-            return redirect()->route('admin.idx');
+        if ($user->hasRole('client')) {
+            return redirect()->route('client.idx');
         }
 
         return redirect('/');

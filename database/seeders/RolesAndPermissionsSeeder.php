@@ -15,12 +15,14 @@ class RolesAndPermissionsSeeder extends Seeder
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         // ── Roles ─────────────────────────────────────────────────────────────
-        // super-admin: akses penuh via Gate::before (lihat AppServiceProvider)
-        // admin      : kelola data semua client
-        // user       : akses terbatas (mahasiswa / pengguna biasa)
+        // super-admin : akses penuh via Gate::before (lihat AppServiceProvider)
+        // client      : kelola data semua program studi
+        // program     : akses terbatas per program studi
+        // operator    : per-program, hanya akses timetable yang sudah compiled
 
         Role::firstOrCreate(['name' => 'super-admin']);
-        Role::firstOrCreate(['name' => 'admin']);
-        Role::firstOrCreate(['name' => 'user']);
+        Role::firstOrCreate(['name' => 'client']);
+        Role::firstOrCreate(['name' => 'program']);
+        Role::firstOrCreate(['name' => 'operator']);
     }
 }

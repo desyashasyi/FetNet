@@ -52,7 +52,8 @@ class Activity extends Model
 
     public function spaces()
     {
-        return $this->belongsToMany(Space::class, 'fetnet_activity_space', 'activity_id', 'space_id');
+        return $this->belongsToMany(Space::class, 'fetnet_activity_space', 'activity_id', 'space_id')
+                    ->withPivot('assigned_by');
     }
 
     protected static function booted(): void

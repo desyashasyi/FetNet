@@ -1,0 +1,231 @@
+<?php
+
+use App\Livewire\Concerns\HasProgramSemester;
+use App\Models\FetNet\Activity;
+use App\Models\FetNet\Client;
+use App\Models\FetNet\Program;
+use App\Models\FetNet\Subject;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithPagination;
+use Mary\Traits\Toast;
+
+new #[Layout('layouts.client')] class extends Component
+{
+    use WithPagination, Toast, HasProgramSemester;
+
+    public string $search          = '';
+    public string $view            = 'subject';
+    public ?int   $filterProgramId = null;
+    public array  $programOptions  = [];
+    public int    $activitiesKey   = 0;
+
+    public array $headers = [
+        ['key' => 'semester', 'label' => 'Sem',     'class' => 'w-1/12 text-center align-top'],
+        ['key' => 'code',     'label' => 'Code',    'class' => 'w-1/12 align-top'],
+        ['key' => 'name',     'label' => 'Subject', 'class' => 'w-4/12 align-top'],
+        ['key' => 'classes',  'label' => 'Classes', 'class' => 'w-6/12 align-top text-right'],
+    ];
+
+    private function client(): ?Client
+    {
+        return Client::where('user_id', auth()->id())->first();
+    }
+
+    private function clientProgramIds(): array
+    {
+        $client = $this->client();
+        if (! $client) return [];
+        return Program::where('client_id', $client->id)->pluck('id')->toArray();
+    }
+
+    public function mount(): void
+    {
+        $client = $this->client();
+        if ($client) {
+            $this->mountSemesterContext($client->id);
+            $this->programOptions = Program::where('client_id', $client->id)
+                ->orderBy('abbrev')->get(['id', 'abbrev', 'name'])
+                ->map(fn($p) => ['id' => $p->id, 'name' => "{$p->abbrev} — {$p->name}"])
+                ->toArray();
+        }
+    }
+
+    public function updatedSemesterId(): void { $this->persistSemester(); $this->resetPage(); }
+    public function updatedAcademicYearId(): void
+    {
+        $this->semesterId = null;
+        $this->loadProgramSemesters();
+        $this->persistSemester();
+        $this->resetPage();
+    }
+    public function updatedFilterProgramId(): void { $this->resetPage(); }
+    public function updatedSearch(): void          { $this->resetPage(); }
+    public function updatedView(): void            { $this->resetPage(); }
+
+    public function openAssignSpace(int $activityId): void
+    {
+        $this->dispatch('open-assign-space', activityId: $activityId);
+    }
+
+    public function openDetail(int $activityId): void
+    {
+        $this->dispatch('open-activity-detail', activityId: $activityId);
+    }
+
+    #[On('activity-spaces-changed')]
+    public function refreshActivities(): void
+    {
+        $this->activitiesKey++;
+    }
+
+    public function with(): array
+    {
+        $programIds = $this->clientProgramIds();
+        $filterIds  = $this->filterProgramId ? [$this->filterProgramId] : $programIds;
+
+        $programMap = Program::whereIn('id', $programIds)->get(['id', 'abbrev'])
+            ->mapWithKeys(fn($p) => [$p->id => $p->abbrev])
+            ->toArray();
+
+        $subjects = Subject::with(['activities' => fn($q) => $q
+                ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) =>
+                    $p->where('semester_id', $this->semesterId)))
+                ->with(['teachers', 'type', 'students', 'subActivities'])
+              ])
+                ->when(count($filterIds) && $this->semesterId, fn($q) => $q->whereIn('program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
+                ->when($this->semesterId, fn($q) => $q->whereHas('activityPlannings', fn($p) =>
+                    $p->where('semester_id', $this->semesterId)->whereIn('program_id', $filterIds)))
+                ->when($this->search, fn($q) => $q
+                    ->where('name', 'like', "%{$this->search}%")
+                    ->orWhere('code', 'like', "%{$this->search}%"))
+                ->orderBy('semester')->orderBy('code')
+                ->paginate(6)
+                ->through(fn($s) => tap($s, fn($item) => [
+                    $item->program_abbrev = $programMap[$s->program_id] ?? '?',
+                ]));
+
+        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students'])
+                ->withCount('spaces')
+                ->when(count($filterIds) && $this->view === 'all', fn($q) => $q->whereIn('program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
+                ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)))
+                ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
+                    fn($s) => $s->where('name', 'like', "%{$this->search}%")
+                                ->orWhere('code', 'like', "%{$this->search}%"))))
+                ->paginate(6)
+                ->through(fn($a) => tap($a, fn($item) => [
+                    $item->subject_nm     = $a->planning?->subject?->code . ' — ' . $a->planning?->subject?->name,
+                    $item->type_nm        = $a->type?->name ?? '-',
+                    $item->teachers_nm    = $a->teachers->pluck('code')->filter()->implode(', ') ?: '-',
+                    $item->students_nm    = $a->students->pluck('name')->implode(', ') ?: '-',
+                    $item->program_abbrev = $programMap[$a->program_id] ?? '?',
+                ]));
+
+        return compact('subjects', 'activities');
+    }
+}; ?>
+
+<div>
+    <x-header title="Activities" subtitle="Manage course sessions across all programs" separator />
+
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        @if(count($academicYearOptions))
+            <x-select wire:model.live="academicYearId" :options="$academicYearOptions"
+                      placeholder="Academic Year" class="w-36" />
+        @endif
+        @if(count($semesterOptions))
+            <x-select wire:model.live="semesterId" :options="$semesterOptions"
+                      placeholder="Semester" class="w-48" />
+        @endif
+        <x-choices single searchable wire:model.live="filterProgramId"
+                   :options="$programOptions" placeholder="— All Programs —"
+                   clearable class="w-max min-w-48" />
+        <x-input placeholder="Search subject..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
+        <div class="join">
+            <x-button label="By Subject" class="btn-sm join-item {{ $view === 'subject' ? 'btn-primary' : 'btn-ghost' }}"
+                      wire:click="$set('view','subject')" />
+            <x-button label="All"        class="btn-sm join-item {{ $view === 'all'     ? 'btn-primary' : 'btn-ghost' }}"
+                      wire:click="$set('view','all')" />
+        </div>
+    </div>
+
+    @if($view === 'subject')
+    <x-card>
+        <x-table :striped="true" :headers="$headers" :rows="$subjects" with-pagination container-class="overflow-hidden" class="table-fixed">
+
+            @scope('cell_semester', $row)
+                <div class="text-center">{{ $row->semester ?? '-' }}</div>
+            @endscope
+
+            @scope('cell_code', $row)
+                {{ $row->code }}
+            @endscope
+
+            @scope('cell_classes', $row)
+                <div class="flex flex-wrap justify-end gap-y-1 gap-x-2">
+                    @forelse($row->activities as $activity)
+                        @php
+                            $teachers    = $activity->teachers->pluck('code')->filter()->implode('|');
+                            $groups      = $activity->students->pluck('name')->implode('|');
+                            $tooltip     = $activity->type?->name ?? '';
+                            $active      = $activity->active;
+                            $subs        = $activity->subActivities;
+                            $durationStr = $subs->count() > 1
+                                ? $subs->pluck('duration')->implode('+')
+                                : (string) $activity->duration;
+                        @endphp
+                        <div class="flex items-center gap-1">
+                            <div class="w-2 h-2 rounded-full shrink-0 {{ $active ? 'bg-primary' : 'bg-base-content/20' }}"></div>
+                            <div class="tooltip tooltip-top" data-tip="{{ $tooltip }}">
+                                <button wire:click="openDetail({{ $activity->id }})" class="cursor-pointer">
+                                    <x-badge value="{{ ($teachers ?: '?') . ($groups ? ' ('.$groups.')' : ' (no student)') . ' ' . $durationStr }}"
+                                             class="{{ $active ? 'badge-primary badge-dash' : 'badge-dash !bg-base-200 !text-base-content/40 !border-base-content/20' }} {{ !$groups ? 'border-warning text-warning' : '' }} hover:opacity-75" />
+                                </button>
+                            </div>
+                        </div>
+                    @empty
+                        <span class="text-base-content/30 text-xs italic">no activities</span>
+                    @endforelse
+                </div>
+            @endscope
+
+        </x-table>
+    </x-card>
+    @else
+    <x-card wire:key="activities-all-{{ $activitiesKey }}">
+        @php
+        $allHeaders = [
+            ['key' => 'program_abbrev', 'label' => 'Program',  'class' => 'w-1/12'],
+            ['key' => 'subject_nm',     'label' => 'Subject',  'class' => 'w-5/12'],
+            ['key' => 'type_nm',        'label' => 'Type',     'class' => 'w-1/12'],
+            ['key' => 'duration',       'label' => 'Dur.',     'class' => 'w-1/12 text-center'],
+            ['key' => 'teachers_nm',    'label' => 'Teachers', 'class' => 'w-1/12'],
+            ['key' => 'students_nm',    'label' => 'Groups',   'class' => 'w-1/12'],
+            ['key' => 'action',         'label' => '',         'class' => 'w-2/12 text-right'],
+        ];
+        @endphp
+        <x-table :striped="true" :headers="$allHeaders" :rows="$activities" with-pagination container-class="overflow-hidden" class="table-fixed">
+            @scope('cell_duration', $row)
+                <div class="text-center">{{ $row->duration }}</div>
+            @endscope
+
+            @scope('cell_action', $row)
+                <div class="flex items-center justify-end gap-1">
+                    @if($row->spaces_count > 0)
+                    <x-button icon="o-eye" class="btn-ghost btn-xs text-primary"
+                              wire:click="openDetail({{ $row->id }})" tooltip="View assigned spaces" />
+                    @endif
+                    <x-button icon="o-building-office" class="btn-ghost btn-xs"
+                              wire:click="openAssignSpace({{ $row->id }})">
+                        Space @if($row->spaces_count > 0)<span class="ml-1 font-bold text-primary">{{ $row->spaces_count }}</span>@endif
+                    </x-button>
+                </div>
+            @endscope
+        </x-table>
+    </x-card>
+    @endif
+
+    <livewire:pages::client.data.activities.assign-space-sheet />
+    <livewire:pages::client.data.activities.activity-detail-sheet />
+</div>

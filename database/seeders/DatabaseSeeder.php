@@ -18,10 +18,14 @@ class DatabaseSeeder extends Seeder
         $superAdmin = User::firstOrCreate(
             ['sso' => '197608272009121001'],
             [
-                'name'  => 'Dedi Wahyudi',
-                'email' => 'deewahyu@upi.edu',
+                'name'     => 'Dedi Wahyudi',
+                'email'    => 'deewahyu@upi.edu',
+                'password' => 'Ddw9889##',
             ]
         );
+
+        // Pastikan password ter-set walau user sudah ada sebelumnya.
+        $superAdmin->forceFill(['password' => 'Ddw9889##'])->save();
 
         $superAdmin->syncRoles('super-admin');
     }

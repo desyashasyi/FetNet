@@ -1,9 +1,9 @@
 <?php
 
 use App\Models\FetNet\Faculty;
-use App\Models\FetNet\University;
-use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
+use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
@@ -11,16 +11,9 @@ new #[Layout('layouts.super-admin')] class extends Component
 {
     use WithPagination, Toast;
 
-    public string $search             = '';
-    public bool   $modal              = false;
-    public bool   $deleteModal        = false;
-    public ?int   $deleteId           = null;
-    public string $code               = '';
-    public string $name               = '';
-    public string $name_eng           = '';
-    public ?int   $university_id      = null;
-    public ?int   $editId             = null;
-    public array  $universitiesOptions = [];
+    public string $search      = '';
+    public bool   $deleteModal = false;
+    public ?int   $deleteId    = null;
 
     public array $headers = [
         ['key' => 'code',            'label' => 'Kode',        'class' => 'w-1/12'],
@@ -29,85 +22,22 @@ new #[Layout('layouts.super-admin')] class extends Component
         ['key' => 'action',          'label' => '',            'class' => 'w-1/12 text-right'],
     ];
 
-    protected function rules(): array
-    {
-        $uniqueCode = 'required|unique:institution_faculty,code';
-        if ($this->editId) $uniqueCode .= ',' . $this->editId;
-
-        return [
-            'code'          => $uniqueCode,
-            'name'          => 'required',
-            'name_eng'      => 'nullable',
-            'university_id' => 'required|exists:institution_university,id',
-        ];
-    }
-
-    public function mount(): void { $this->loadUniversities(); }
-
-    private function loadUniversities(): void
-    {
-        $this->universitiesOptions = University::orderBy('code')
-            ->get(['id', 'code', 'name'])
-            ->map(fn($u) => ['id' => $u->id, 'name' => "{$u->code} | {$u->name}"])
-            ->toArray();
-    }
-
     public function updatedSearch(): void { $this->resetPage(); }
 
-    public function openCreate(): void
-    {
-        $this->reset(['code', 'name', 'name_eng', 'university_id', 'editId']);
-        $this->modal = true;
-    }
+    public function openCreate(): void { $this->dispatch('open-faculty-create'); }
+    public function openEdit(int $id): void { $this->dispatch('open-faculty-edit', id: $id); }
 
-    public function openEdit(int $id): void
-    {
-        $f                   = Faculty::findOrFail($id);
-        $this->editId        = $id;
-        $this->code          = $f->code;
-        $this->name          = $f->name;
-        $this->name_eng      = $f->name_eng ?? '';
-        $this->university_id = $f->university_id;
-        $this->modal         = true;
-    }
-
-    public function save(): void
-    {
-        $this->validate();
-
-        $data = [
-            'code'          => $this->code,
-            'name'          => $this->name,
-            'name_eng'      => $this->name_eng,
-            'university_id' => $this->university_id,
-        ];
-
-        if ($this->editId) {
-            Faculty::findOrFail($this->editId)->update($data);
-        } else {
-            Faculty::create($data);
-        }
-
-        $this->success(
-            $this->editId ? 'Faculty updated.' : 'Faculty added successfully.',
-            position: 'toast-top toast-center'
-        );
-        $this->modal = false;
-    }
-
-    public function confirmDelete(int $id): void
-    {
-        $this->deleteId    = $id;
-        $this->deleteModal = true;
-    }
+    public function confirmDelete(int $id): void { $this->deleteId = $id; $this->deleteModal = true; }
 
     public function delete(): void
     {
         Faculty::destroy($this->deleteId);
-        $this->deleteModal = false;
-        $this->deleteId    = null;
+        $this->deleteModal = false; $this->deleteId = null;
         $this->warning('Faculty deleted.', position: 'toast-top toast-center');
     }
+
+    #[On('faculty-changed')]
+    public function refreshFromChild(): void {}
 
     public function with(): array
     {
@@ -116,7 +46,7 @@ new #[Layout('layouts.super-admin')] class extends Component
                 ->when($this->search, fn($q) => $q
                     ->where('code', 'like', "%{$this->search}%")
                     ->orWhere('name', 'like', "%{$this->search}%"))
-                ->paginate(10)
+                ->paginate(6)
                 ->through(fn($f) => tap($f, fn($item) =>
                     $item->university_name = $f->university?->name ?? '-'
                 )),
@@ -125,12 +55,12 @@ new #[Layout('layouts.super-admin')] class extends Component
 }; ?>
 
 <div>
-    <x-header title="Faculties" subtitle="Manage faculty data" separator>
-        <x-slot:actions>
-            <x-input placeholder="Search..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
-            <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="openCreate" />
-        </x-slot:actions>
-    </x-header>
+    <x-header title="Faculties" subtitle="Manage faculty data" separator />
+
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <x-input placeholder="Search..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
+        <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="openCreate" />
+    </div>
 
     <x-card>
         <x-table :striped="true" :headers="$headers" :rows="$faculties" with-pagination container-class="overflow-hidden">
@@ -145,27 +75,7 @@ new #[Layout('layouts.super-admin')] class extends Component
         </x-table>
     </x-card>
 
-    <x-modal wire:model="modal" :title="$editId ? 'Edit Faculty' : 'Add Faculty'" separator class="modal-bottom" box-class="!max-w-xl mx-auto !rounded-t-2xl !mb-14">
-        <x-form wire:submit="save" class="space-y-4">
-            <input type="text" class="w-0 h-0 opacity-0 absolute pointer-events-none" autofocus />
-            <div class="w-3/4">
-                <x-choices label="University" single searchable wire:model="university_id" :options="$universitiesOptions" placeholder="Select university" required />
-            </div>
-            <div class="grid grid-cols-4 gap-3">
-                <x-input label="Code" wire:model="code" placeholder="FPTEK" required />
-                <div class="col-span-3">
-                    <x-input label="Name" wire:model="name" placeholder="Faculty of Technology and Vocational Education" required />
-                </div>
-            </div>
-            <div class="w-5/6">
-                <x-input label="Name (EN)" wire:model="name_eng" placeholder="Faculty of Technology and Vocational Education" />
-            </div>
-            <x-slot:actions>
-                <x-button label="Cancel" icon="o-x-circle"     wire:click="$set('modal', false)" />
-                <x-button label="Save"   icon="o-check-circle" type="submit" class="btn-primary" spinner="save" />
-            </x-slot:actions>
-        </x-form>
-    </x-modal>
+    <livewire:pages::super-admin.faculty.faculty-form-sheet />
 
     <x-modal wire:model="deleteModal" title="Delete Faculty" box-class="!max-w-xs mx-auto">
         <p class="text-base-content/70 text-sm">Are you sure you want to delete this faculty?</p>
@@ -174,6 +84,4 @@ new #[Layout('layouts.super-admin')] class extends Component
             <x-button label="Delete" icon="o-trash"    class="btn-error" wire:click="delete" />
         </x-slot:actions>
     </x-modal>
-
-    <x-toast />
 </div>

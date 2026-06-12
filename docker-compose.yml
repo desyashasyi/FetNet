@@ -7,6 +7,7 @@ services:
             args:
                 WWWUSER: ${WWWUSER:-1000}
                 WWWGROUP: ${WWWGROUP:-1000}
+        image: fetnet-app
         restart: unless-stopped
         container_name: fetnet-app
         working_dir: /var/www
@@ -17,6 +18,9 @@ services:
             - .:/var/www
             - .docker/php/supervisord.conf:/etc/supervisord.conf
             - .docker/php/supervisor.conf:/etc/supervisor/conf.d/supervisor.conf
+        dns:
+            - 8.8.8.8
+            - 1.1.1.1
         depends_on:
             mariadb:
                 condition: service_healthy

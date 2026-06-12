@@ -2,6 +2,7 @@
 
 namespace App\Jobs\FetNet;
 
+use App\Events\FetNet\ActivitySpacesUpdatedEvent;
 use App\Models\FetNet\Activity;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -21,5 +22,11 @@ class AssignSpacesToActivityJob implements ShouldQueue
     public function handle(): void
     {
         Activity::find($this->activityId)?->spaces()->syncWithoutDetaching($this->spaceIds);
+
+        ActivitySpacesUpdatedEvent::dispatch(
+            $this->activityId,
+            'success',
+            count($this->spaceIds) . ' space(s) assigned.',
+        );
     }
 }

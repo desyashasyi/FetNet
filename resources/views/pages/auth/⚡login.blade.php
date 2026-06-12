@@ -28,8 +28,12 @@ new #[Layout('layouts.guest')] class extends Component
                 return redirect()->route('super-admin.idx');
             }
 
-            if ($user->hasRole('admin')) {
-                return redirect()->route('admin.idx');
+            if ($user->hasRole('client')) {
+                return redirect()->route('client.idx');
+            }
+
+            if ($user->hasRole('operator')) {
+                return redirect()->route('operator.idx');
             }
 
             return redirect('/');

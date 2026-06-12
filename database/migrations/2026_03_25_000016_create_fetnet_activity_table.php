@@ -15,6 +15,7 @@ return new class extends Migration
             $table->foreignId('semester_id')->nullable()->constrained('fetnet_semester')->nullOnDelete();
             $table->foreignId('type_id')->nullable()->constrained('fetnet_activity_type')->nullOnDelete();
             $table->tinyInteger('duration')->default(1);
+            $table->boolean('active')->default(true);
             $table->softDeletes();
             $table->timestamps();
         });

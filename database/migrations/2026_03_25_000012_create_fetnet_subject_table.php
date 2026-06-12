@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('fetnet_subject', function (Blueprint $table) {
             $table->id();
             $table->foreignId('program_id')->constrained('institution_program')->cascadeOnDelete();
+            $table->foreignId('curriculum_year_id')->nullable()->constrained('fetnet_curriculum_year')->nullOnDelete();
             $table->foreignId('specialization_id')->nullable()->constrained('fetnet_specialization')->nullOnDelete();
             $table->foreignId('type_id')->nullable()->constrained('fetnet_subject_type')->nullOnDelete();
             $table->string('code', 10);

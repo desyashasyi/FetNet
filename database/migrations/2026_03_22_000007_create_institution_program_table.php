@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('code', 10)->nullable();
             $table->string('abbrev', 10)->nullable();
             $table->string('name', 100)->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

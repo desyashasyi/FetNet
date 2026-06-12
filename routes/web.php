@@ -9,7 +9,8 @@ Route::get('/', function () {
     if (!auth()->check()) return redirect()->route('login');
     $user = auth()->user();
     if ($user->hasRole('super-admin')) return redirect()->route('super-admin.idx');
-    if ($user->hasRole('admin'))       return redirect()->route('admin.idx');
+    if ($user->hasRole('client'))      return redirect()->route('client.idx');
+    if ($user->hasRole('operator'))    return redirect()->route('operator.idx');
     return redirect()->route('program.idx');
 });
 
@@ -32,6 +33,19 @@ Route::prefix('auth/cas')->name('auth.cas.')->group(function () {
     Route::get('/logout',   [CasController::class, 'logout'])->name('logout')->middleware('auth');
 });
 
+// ─── Impersonation ───────────────────────────────────────────────────────────
+Route::get('/impersonate/leave', function () {
+    $originalId = session()->pull('impersonator_id');
+    if ($originalId) {
+        $original = App\Models\User::find($originalId);
+        if ($original) {
+            Auth::login($original);
+            return redirect()->route('super-admin.client');
+        }
+    }
+    return redirect()->route('login');
+})->middleware('auth')->name('impersonate.leave');
+
 // ─── Super Admin ──────────────────────────────────────────────────────────────
 Route::middleware(['auth', 'role:super-admin'])->prefix('super-admin')->name('super-admin.')->group(function () {
     Route::livewire('/',           'pages::super-admin.⚡idx')->name('idx');
@@ -42,14 +56,26 @@ Route::middleware(['auth', 'role:super-admin'])->prefix('super-admin')->name('su
 });
 
 // ─── Admin ────────────────────────────────────────────────────────────────────
-Route::middleware(['auth', 'role:super-admin|admin'])->group(function () {
-    Route::livewire('/admin',                      'pages::admin.⚡idx')->name('admin.idx');
-    Route::livewire('/admin/program',              'pages::admin.program.⚡idx')->name('admin.program');
-    Route::livewire('/admin/data/basic',           'pages::admin.data.basic.⚡idx')->name('admin.data.basic');
-    Route::livewire('/admin/data/academic-year',   'pages::admin.data.academic-year.⚡idx')->name('admin.data.academic-year');
-    Route::livewire('/admin/data/teachers',        'pages::admin.data.teachers.⚡idx')->name('admin.data.teachers');
-    Route::livewire('/admin/data/space',           'pages::admin.data.space.⚡idx')->name('admin.data.space');
-    Route::livewire('/admin/data/activities',      'pages::admin.data.activities.⚡idx')->name('admin.data.activities');
+Route::middleware(['auth', 'role:super-admin|client'])->group(function () {
+    Route::livewire('/client',                      'pages::client.⚡idx')->name('client.idx');
+    Route::livewire('/client/program',              'pages::client.program.⚡idx')->name('client.program');
+    Route::livewire('/client/data/basic',           'pages::client.data.basic.⚡idx')->name('client.data.basic');
+    Route::livewire('/client/data/academic-year',   'pages::client.data.academic-year.⚡idx')->name('client.data.academic-year');
+    Route::livewire('/client/data/teachers',        'pages::client.data.teachers.⚡idx')->name('client.data.teachers');
+    Route::livewire('/client/data/space',           'pages::client.data.space.⚡idx')->name('client.data.space');
+    Route::livewire('/client/data/activities',      'pages::client.data.activities.⚡idx')->name('client.data.activities');
+    // Time constraints
+    Route::livewire('/client/time/teachers',        'pages::client.time.teachers.⚡idx')->name('client.time.teachers');
+    Route::livewire('/client/time/students',        'pages::client.time.students.⚡idx')->name('client.time.students');
+    // Timetable compile + generate
+    Route::livewire('/client/timetable',            'pages::client.timetable.⚡idx')->name('client.timetable');
+    Route::livewire('/client/timetable/view',       'pages::client.timetable.view.⚡idx')->name('client.timetable.view');
+    Route::get('/client/timetable/{compile}/download',
+        \App\Http\Controllers\FetNet\FetCompileDownloadController::class)
+        ->name('client.timetable.download');
+    Route::get('/client/timetable/{compile}/result',
+        \App\Http\Controllers\FetNet\SolverResultDownloadController::class)
+        ->name('client.timetable.result');
 });
 
 // ─── Program ──────────────────────────────────────────────────────────────────
@@ -71,4 +97,12 @@ Route::middleware(['auth'])->prefix('program')->name('program.')->group(function
     // Timetable
     Route::livewire('/timetable/teachers',  'pages::program.timetable.teachers.⚡idx')->name('timetable.teachers');
     Route::livewire('/timetable/students',  'pages::program.timetable.students.⚡idx')->name('timetable.students');
+    Route::livewire('/timetable/rooms',     'pages::program.timetable.rooms.⚡idx')->name('timetable.rooms');
+});
+
+// ─── Operator ─────────────────────────────────────────────────────────────────
+// Per-program user, hanya akses timetable yang sudah di-publish.
+Route::middleware(['auth', 'role:operator'])->prefix('operator')->name('operator.')->group(function () {
+    Route::livewire('/',          'pages::operator.⚡idx')->name('idx');
+    Route::livewire('/timetable', 'pages::operator.timetable.⚡idx')->name('timetable');
 });

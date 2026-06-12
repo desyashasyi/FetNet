@@ -12,7 +12,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('program_id')->constrained('institution_program')->cascadeOnDelete();
             $table->string('code', 10)->nullable();
+            $table->char('univ_code', 4)->nullable();
             $table->string('employee_id', 20)->nullable();
+            $table->string('position', 100)->nullable();
+            $table->string('civil_grade', 50)->nullable();
             $table->string('front_title', 15)->nullable();
             $table->string('rear_title', 30)->nullable();
             $table->string('name', 200);

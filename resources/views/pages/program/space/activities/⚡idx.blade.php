@@ -1,19 +1,132 @@
 <?php
 
-use Livewire\Component;
+use App\Livewire\Concerns\HasProgramSemester;
+use App\Models\FetNet\Activity;
+use App\Models\FetNet\Program;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithPagination;
+use Mary\Traits\Toast;
 
 new #[Layout('layouts.program')] class extends Component
 {
-    public function render(): string
+    use Toast, WithPagination, HasProgramSemester;
+
+    public string $search = '';
+
+    private function program(): ?Program
     {
-        return <<<'BLADE'
-        <div>
-            <x-header title="Activity Space Constraints" subtitle="Set room constraints for activities" separator />
-            <x-card>
-                <p class="text-center text-base-content/40 py-8 text-sm">Coming soon.</p>
-            </x-card>
-        </div>
-        BLADE;
+        return Program::where('user_id', auth()->id())->first();
+    }
+
+    public function mount(): void
+    {
+        $program = $this->program();
+        if ($program) $this->mountSemesterContext($program->client_id);
+    }
+
+    public function updatedSearch(): void { $this->resetPage(); }
+    public function updatedAcademicYearId(): void
+    {
+        $this->semesterId = null;
+        $this->loadProgramSemesters();
+        $this->persistSemester();
+        $this->resetPage();
+    }
+    public function updatedSemesterId(): void { $this->persistSemester(); $this->resetPage(); }
+
+    public function openAssignSpace(int $activityId): void
+    {
+        $this->dispatch('open-assign-rooms', activityId: $activityId);
+    }
+
+    public function openClaimModal(): void
+    {
+        $this->dispatch('open-claim');
+    }
+
+    #[On('rooms-changed')]
+    public function refreshActivities(): void {}
+
+    public function with(): array
+    {
+        $program = $this->program();
+
+        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students', 'spaces.building'])
+            ->when($program && $this->semesterId,
+                fn($q) => $q->where('program_id', $program->id)
+                             ->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)),
+                fn($q) => $q->whereRaw('0=1'))
+            ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
+                fn($s) => $s->where('name', 'like', "%{$this->search}%")
+                            ->orWhere('code', 'like', "%{$this->search}%"))))
+            ->paginate(6)
+            ->through(fn($a) => tap($a, fn($item) => [
+                $item->subject_nm   = ($a->planning?->subject?->code ?? '?') . ' — ' . ($a->planning?->subject?->name ?? '—'),
+                $item->type_nm      = $a->type?->name ?? '—',
+                $item->teachers_nm  = $a->teachers->pluck('code')->filter()->implode(', ') ?: '—',
+                $item->spaces_count = $a->spaces->count(),
+                $item->rooms_badge  = null,
+            ]));
+
+        return compact('activities');
     }
 }; ?>
+
+<div>
+    <x-header title="Space → Activities" subtitle="Assign rooms to each activity" separator>
+        <x-slot:actions>
+            <x-button label="Manage Spaces" icon="o-building-office" class="btn-ghost btn-sm"
+                      wire:click="openClaimModal" />
+        </x-slot:actions>
+    </x-header>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        @if(count($academicYearOptions))
+            <x-select wire:model.live="academicYearId" :options="$academicYearOptions" placeholder="Academic Year" class="w-36" />
+        @endif
+        @if(count($semesterOptions))
+            <x-select wire:model.live="semesterId" :options="$semesterOptions" placeholder="Semester" class="w-48" />
+        @endif
+        <x-input wire:model.live.debounce.300ms="search" placeholder="Search subject..." icon="o-magnifying-glass" class="w-48" clearable />
+    </div>
+
+    @if(! $semesterId)
+        <x-card>
+            <p class="text-center text-base-content/40 py-8 text-sm">Select a semester to continue.</p>
+        </x-card>
+    @else
+        @php
+        $headers = [
+            ['key' => 'subject_nm',  'label' => 'Subject'],
+            ['key' => 'teachers_nm', 'label' => 'Teachers'],
+            ['key' => 'rooms_badge', 'label' => 'Rooms', 'class' => 'w-20 text-center'],
+        ];
+        @endphp
+        <x-table :headers="$headers" :rows="$activities" container-class="overflow-hidden" with-pagination>
+            @scope('cell_subject_nm', $row)
+                <div class="font-medium text-sm">{{ $row->subject_nm }}</div>
+                <div class="text-xs text-base-content/40">{{ $row->type_nm }}</div>
+            @endscope
+            @scope('cell_teachers_nm', $row)
+                <span class="text-sm">{{ $row->teachers_nm }}</span>
+            @endscope
+            @scope('cell_rooms_badge', $row)
+                @if($row->spaces_count)
+                    <x-badge :value="$row->spaces_count" class="badge-success badge-sm font-semibold" />
+                @else
+                    <x-badge value="0" class="badge-ghost badge-sm" />
+                @endif
+            @endscope
+            @scope('actions', $row)
+                <x-button icon="o-building-office" class="btn-ghost btn-xs"
+                          wire:click="openAssignSpace({{ $row->id }})"
+                          tooltip="Assign rooms" />
+            @endscope
+        </x-table>
+    @endif
+
+    <livewire:pages::program.space.activities.assign-rooms-sheet />
+    <livewire:pages::program.space.activities.claim-sheet />
+</div>

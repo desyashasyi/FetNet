@@ -49,12 +49,12 @@
                     </x-menu-sub>
                 @endrole
 
-                {{-- Admin --}}
-                @role('admin')
-                    <x-menu-sub title="Admin" icon="o-wrench-screwdriver">
-                        <x-menu-item title="Dashboard"      icon="o-squares-2x2"  link="{{ route('admin.idx') }}" />
-                        <x-menu-item title="Study Programs" icon="o-academic-cap" link="{{ route('admin.program') }}" />
-                        <x-menu-item title="Basic Data"     icon="o-cog-6-tooth"  link="{{ route('admin.data.basic') }}" />
+                {{-- Client --}}
+                @role('client')
+                    <x-menu-sub title="Client" icon="o-wrench-screwdriver">
+                        <x-menu-item title="Dashboard"      icon="o-squares-2x2"  link="{{ route('client.idx') }}" />
+                        <x-menu-item title="Study Programs" icon="o-academic-cap" link="{{ route('client.program') }}" />
+                        <x-menu-item title="Basic Data"     icon="o-cog-6-tooth"  link="{{ route('client.data.basic') }}" />
                     </x-menu-sub>
                 @endrole
 
