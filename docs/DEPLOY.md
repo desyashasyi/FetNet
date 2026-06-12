@@ -20,8 +20,8 @@ cd /var/www/fetnet
 make up
 
 # 3. Pasang reverse proxy host
-sudo cp docs/nginx-host.conf.txt /etc/nginx/sites-available/fetnet.techupi.id.conf
-sudo ln -s /etc/nginx/sites-available/fetnet.techupi.id.conf /etc/nginx/sites-enabled/
+sudo cp docs/fetnet.conf /etc/nginx/sites-available/fetnet.conf
+sudo ln -s /etc/nginx/sites-available/fetnet.conf /etc/nginx/sites-enabled/fetnet.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -58,12 +58,12 @@ sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d fetnet.techupi.id
 ```
 
-Certbot akan auto-update file nginx host. Setelah sukses, buka blok HTTPS yang sudah disiapkan (komentar) di `docs/nginx-host.conf.txt` jika perlu manual override.
+Certbot akan auto-update file nginx host. Setelah sukses, buka blok HTTPS yang sudah disiapkan (komentar) di `docs/fetnet.conf` jika perlu manual override.
 
 ## Konfigurasi Domain & Reverse Proxy
 
 - Container nginx expose port `8088` di host (lihat `docker-compose.yml`).
-- Host nginx proxy_pass ke `http://127.0.0.1:8088` (lihat `docs/nginx-host.conf.txt`).
+- Host nginx proxy_pass ke `http://127.0.0.1:8088` (lihat `docs/fetnet.conf`).
 - Reverb (WebSocket) container expose port `8090` di host. Path `/app` di host nginx diteruskan ke `http://127.0.0.1:8090` dengan upgrade header.
 - Laravel `bootstrap/app.php` set `trustProxies('*')` agar `X-Forwarded-Proto`/`X-Forwarded-Host` dari host nginx dihormati (penting setelah pasang TLS).
 
@@ -108,4 +108,4 @@ Bootstrap migrate gagal di-skip. Cek log: `docker logs fetnet-app | grep bootstr
 `public/build/` belum di-generate. Jalankan: `make npm run build`.
 
 **Login redirect loop / `419 Page Expired` di belakang reverse proxy.**
-`trustProxies` sudah aktif. Pastikan host nginx forward `X-Forwarded-Proto $scheme` (sudah ada di `docs/nginx-host.conf.txt`).
+`trustProxies` sudah aktif. Pastikan host nginx forward `X-Forwarded-Proto $scheme` (sudah ada di `docs/fetnet.conf`).
