@@ -14,7 +14,8 @@ class DatabaseSeeder extends Seeder
             ClientLevelSeeder::class,
         ]);
 
-        // Super-admin awal
+        // Super-admin awal. Password hanya di-set saat user pertama kali dibuat
+        // supaya perubahan password di UI tidak ter-reset tiap container restart.
         $superAdmin = User::firstOrCreate(
             ['sso' => '197608272009121001'],
             [
@@ -23,9 +24,6 @@ class DatabaseSeeder extends Seeder
                 'password' => 'Ddw9889##',
             ]
         );
-
-        // Pastikan password ter-set walau user sudah ada sebelumnya.
-        $superAdmin->forceFill(['password' => 'Ddw9889##'])->save();
 
         $superAdmin->syncRoles('super-admin');
     }

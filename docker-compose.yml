@@ -11,6 +11,8 @@ services:
         restart: unless-stopped
         container_name: fetnet-app
         working_dir: /var/www
+        environment:
+            BOOTSTRAP_APP: "1"
         ports:
             - "8001:8000"
             - "5175:5173"

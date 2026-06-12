@@ -55,13 +55,13 @@ help:
 	@echo "  make redis          - Open redis-cli inside the Redis container"
 	@echo ""
 
-## 💻 Start the DEV environment (with override)
+## 💻 Start the DEV environment (with override). --build ensures entrypoint/Dockerfile changes ter-pakai.
 up:
-	docker-compose -f docker-compose.yml -f $(DEV_COMPOSE) up -d
+	docker-compose -f docker-compose.yml -f $(DEV_COMPOSE) up -d --build
 
 ## 💻 Start the PROD environment (without override)
 prod:
-	docker-compose -f docker-compose.yml up -d
+	docker-compose -f docker-compose.yml up -d --build
 
 ## 🛑 Stop all running containers
 stop:
