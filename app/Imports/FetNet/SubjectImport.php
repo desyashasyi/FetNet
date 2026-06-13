@@ -22,6 +22,32 @@ class SubjectImport implements ToCollection, WithHeadingRow
         $this->programId = $programId;
     }
 
+    /** Map common header aliases (incl. Indonesian) to canonical keys. */
+    private function canonicalize(array $row): array
+    {
+        $aliases = [
+            'code'            => ['code', 'kode', 'kode_matkul', 'kode_mk', 'kode_mata_kuliah'],
+            'name'            => ['name', 'nama', 'nama_matkul', 'nama_mk', 'mata_kuliah', 'matkul'],
+            'credit'          => ['credit', 'sks', 'kredit'],
+            'semester'        => ['semester', 'smt', 'sem'],
+            'curriculum_year' => ['curriculum_year', 'tahun', 'angkatan', 'tahun_kurikulum', 'kurikulum'],
+            'specialization'  => ['specialization', 'peminatan', 'konsentrasi', 'spesialisasi'],
+            'type'            => ['type', 'tipe', 'jenis', 'jenis_matkul'],
+        ];
+
+        $out = [];
+        foreach ($aliases as $canonical => $keys) {
+            foreach ($keys as $k) {
+                if (array_key_exists($k, $row) && $row[$k] !== null && $row[$k] !== '') {
+                    $out[$canonical] = $row[$k];
+                    break;
+                }
+            }
+        }
+
+        return $out + $row;
+    }
+
     public function collection(Collection $rows): void
     {
         // Pre-load lookups
@@ -44,6 +70,8 @@ class SubjectImport implements ToCollection, WithHeadingRow
             });
 
         foreach ($rows as $row) {
+            $row = $this->canonicalize(is_array($row) ? $row : $row->toArray());
+
             $code = trim($row['code'] ?? '');
             $name = trim($row['name'] ?? '');
 

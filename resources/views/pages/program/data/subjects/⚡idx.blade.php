@@ -50,12 +50,6 @@ new #[Layout('layouts.program')] class extends Component
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedFilterYear(): void { $this->resetPage(); }
 
-    public function openCreate(): void { $this->dispatch('open-subject-create'); }
-    public function openEdit(int $id): void { $this->dispatch('open-subject-edit', id: $id); }
-    public function openYearModal(): void { $this->dispatch('open-curriculum-year-modal'); }
-    public function openSpecModal(): void { $this->dispatch('open-specialization-modal'); }
-    public function openTypeModal(): void { $this->dispatch('open-subject-type-modal'); }
-    public function openImport(): void { $this->dispatch('open-subject-import'); }
 
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->delModal = true; }
 
@@ -109,11 +103,11 @@ new #[Layout('layouts.program')] class extends Component
         <x-select wire:model.live="filterYear" :options="$curriculumYearOptions"
                   placeholder="All Curricula" class="w-40" />
         <x-input placeholder="Search..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
-        <x-button label="Curriculum"    icon="o-calendar"     class="btn-ghost btn-sm" wire:click="openYearModal" />
-        <x-button label="Specialization" icon="o-academic-cap" class="btn-ghost btn-sm" wire:click="openSpecModal" />
-        <x-button label="Types"  icon="o-tag"           class="btn-ghost btn-sm" wire:click="openTypeModal" />
-        <x-button label="Import" icon="o-arrow-up-tray" class="btn-ghost btn-sm" wire:click="openImport" />
-        <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="openCreate" />
+        <x-button label="Curriculum"    icon="o-calendar"     class="btn-ghost btn-sm" wire:click="$dispatch('open-curriculum-year-modal')" />
+        <x-button label="Specialization" icon="o-academic-cap" class="btn-ghost btn-sm" wire:click="$dispatch('open-specialization-modal')" />
+        <x-button label="Types"  icon="o-tag"           class="btn-ghost btn-sm" wire:click="$dispatch('open-subject-type-modal')" />
+        <x-button label="Import" icon="o-arrow-up-tray" class="btn-ghost btn-sm" wire:click="$dispatch('open-subject-import')" />
+        <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="$dispatch('open-subject-create')" />
     </div>
 
     <x-card>
@@ -127,7 +121,7 @@ new #[Layout('layouts.program')] class extends Component
             @endscope
             @scope('cell_action', $row)
                 <div class="flex justify-end gap-1">
-                    <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square" wire:click="openEdit({{ $row->id }})" tooltip="Edit" />
+                    <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square" wire:click="$dispatch('open-subject-edit', { id: {{ $row->id }} })" tooltip="Edit" />
                     <x-button icon="o-trash"  class="btn-ghost btn-sm btn-square text-error" wire:click="confirmDelete({{ $row->id }})" tooltip="Delete" />
                 </div>
             @endscope
