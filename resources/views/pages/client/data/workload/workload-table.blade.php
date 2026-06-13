@@ -36,11 +36,5 @@ new class extends Component
 }; ?>
 
 <x-card>
-    <x-table :headers="$headers" :rows="$tableRows" container-class="overflow-x-auto">
-        @foreach($programs as $p)
-            @scope('header_p_' . $p['id'], $header)
-                <span title="{{ $p['name'] }}">{{ $p['abbrev'] }}</span>
-            @endscope
-        @endforeach
-    </x-table>
+    <x-table :headers="$headers" :rows="$tableRows" container-class="overflow-x-auto" />
 </x-card>
