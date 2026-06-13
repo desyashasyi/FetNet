@@ -57,7 +57,10 @@ class LecturerWorkloadReport
             return $empty;
         }
 
-        // distinct (teacher, prodi, subject, credit) => "per subject once"; team teaching = full credit each.
+        // One row per (activity, teacher): count each activity's subject credit.
+        // Team teaching = full credit to each teacher; a subject split into several
+        // activities is counted once per activity. distinct on the activity id guards
+        // against accidental duplicate teacher pivot rows.
         $raw = DB::table('fetnet_activity as a')
             ->join('fetnet_activity_teacher as at', 'at.activity_id', '=', 'a.id')
             ->join('fetnet_activity_planning as ap', 'ap.id', '=', 'a.planning_id')
@@ -67,7 +70,7 @@ class LecturerWorkloadReport
             ->whereNull('a.deleted_at')
             ->whereNull('ap.deleted_at')
             ->distinct()
-            ->get(['at.teacher_id', 'a.program_id', 'ap.subject_id', 's.credit']);
+            ->get(['a.id as activity_id', 'at.teacher_id', 'a.program_id', 's.credit']);
 
         $matrix     = []; // [teacher_id][program_id] => credit sum
         $programIds = [];

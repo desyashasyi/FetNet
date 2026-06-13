@@ -15,7 +15,7 @@ program's dosen — same format and rules as the client page, scoped to one prog
 |-------|----------|
 | **Rows** | Dosen whose home `program_id` = the logged-in user's program. |
 | **Columns** | Every prodi system-wide where those dosen have load (cross-prodi). Dynamic; only prodi with non-zero load shown. |
-| **SKS unit** | Subject `credit`, counted once per (dosen, prodi, subject). |
+| **SKS unit** | Subject `credit`, counted **per activity** (a split subject is counted once per activity). |
 | **Team teaching** | Full SKS to each dosen. |
 | **Period** | Active program semester via `HasProgramSemester` (`mountSemesterContext($program->client_id)`). |
 | **Cross-client period match** | year_start + semester parity (same as client). |
