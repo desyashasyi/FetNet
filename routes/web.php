@@ -64,6 +64,7 @@ Route::middleware(['auth', 'role:super-admin|client'])->group(function () {
     Route::livewire('/client/data/teachers',        'pages::client.data.teachers.⚡idx')->name('client.data.teachers');
     Route::livewire('/client/data/space',           'pages::client.data.space.⚡idx')->name('client.data.space');
     Route::livewire('/client/data/activities',      'pages::client.data.activities.⚡idx')->name('client.data.activities');
+    Route::livewire('/client/data/workload',        'pages::client.data.workload.⚡idx')->name('client.data.workload');
     // Time constraints
     Route::livewire('/client/time/teachers',        'pages::client.time.teachers.⚡idx')->name('client.time.teachers');
     Route::livewire('/client/time/students',        'pages::client.time.students.⚡idx')->name('client.time.students');
