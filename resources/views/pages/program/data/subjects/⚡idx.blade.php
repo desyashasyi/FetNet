@@ -13,10 +13,11 @@ new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast;
 
-    public string $search     = '';
-    public ?int   $filterYear = null;
-    public bool   $delModal   = false;
-    public ?int   $deleteId   = null;
+    public string $search      = '';
+    public ?int   $filterYear  = null;
+    public bool   $delModal    = false;
+    public bool   $delAllModal = false;
+    public ?int   $deleteId    = null;
 
     public array $curriculumYearOptions = [];
 
@@ -61,6 +62,27 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Subject deleted. Related activities also deleted.', position: 'toast-top toast-center');
     }
 
+    public function confirmDeleteAll(): void { $this->delAllModal = true; }
+
+    public function deleteAll(): void
+    {
+        $program = $this->program();
+        if (! $program) { $this->delAllModal = false; return; }
+
+        // Iterate per model so the deleting hook cascades to related activities.
+        $count = 0;
+        Subject::where('program_id', $program->id)
+            ->chunkById(200, function ($subjects) use (&$count) {
+                foreach ($subjects as $s) { $s->delete(); $count++; }
+            });
+
+        $this->delAllModal = false;
+        $this->resetPage();
+        $this->dispatch('subject-changed');
+        $this->dispatch('refresh-subject-options');
+        $this->warning("{$count} subjects deleted. Related activities also deleted.", position: 'toast-top toast-center');
+    }
+
     #[On('subject-changed')]
     #[On('refresh-subject-options')]
     public function refreshFromChild(): void
@@ -78,7 +100,8 @@ new #[Layout('layouts.program')] class extends Component
     {
         $program = $this->program();
         return [
-            'programId' => $program?->id,
+            'programId'    => $program?->id,
+            'subjectCount' => $program ? Subject::where('program_id', $program->id)->count() : 0,
             'subjects' => Subject::with(['curriculumYear', 'specialization', 'type'])
                     ->when($program, fn($q) => $q->where('program_id', $program->id), fn($q) => $q->whereRaw('0=1'))
                     ->when($this->filterYear, fn($q) => $q->where('curriculum_year_id', $this->filterYear))
@@ -108,6 +131,9 @@ new #[Layout('layouts.program')] class extends Component
         <x-button label="Types"  icon="o-tag"           class="btn-ghost btn-sm" wire:click="$dispatch('open-subject-type-modal')" />
         <x-button label="Import" icon="o-arrow-up-tray" class="btn-ghost btn-sm" wire:click="$dispatch('open-subject-import')" />
         <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="$dispatch('open-subject-create')" />
+        @if($subjectCount > 0)
+            <x-button label="Delete All" icon="o-trash" class="btn-ghost btn-sm text-error" wire:click="confirmDeleteAll" />
+        @endif
     </div>
 
     <x-card>
@@ -142,6 +168,16 @@ new #[Layout('layouts.program')] class extends Component
         <x-slot:actions>
             <x-button label="Cancel" icon="o-x-circle" wire:click="$set('delModal', false)" />
             <x-button label="Delete" icon="o-trash"    class="btn-error" wire:click="delete" />
+        </x-slot:actions>
+    </x-modal>
+
+    <x-modal wire:model="delAllModal" title="Delete All Subjects" box-class="!max-w-sm">
+        <p class="text-base-content/70 text-sm">
+            Delete all {{ $subjectCount }} subjects in this program? All related activities will also be deleted. This cannot be undone.
+        </p>
+        <x-slot:actions>
+            <x-button label="Cancel" icon="o-x-circle" wire:click="$set('delAllModal', false)" />
+            <x-button label="Delete All" icon="o-trash" class="btn-error" wire:click="deleteAll" spinner="deleteAll" />
         </x-slot:actions>
     </x-modal>
 </div>
