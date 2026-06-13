@@ -111,7 +111,7 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertSame([], $report['rows']);
     }
 
-    public function test_counts_cross_client_program_in_matching_period_and_dedupes_subjects(): void
+    public function test_counts_cross_client_program_per_activity(): void
     {
         // Home client + program for the lecturer.
         $clientA  = $this->makeClient();
@@ -124,12 +124,12 @@ class LecturerWorkloadReportTest extends TestCase
         $progB    = $this->makeProgram($clientB, 'EE');
         $semB     = $this->makeSemester($clientB, 2024, 1); // odd, 2024 -> matches period
 
-        // Home prodi: one subject (3 SKS) split into TWO activities -> counted once = 3.
+        // Home prodi: one subject (3 SKS) split into TWO activities -> counted per activity = 6.
         $subA = $this->makeSubject($progA, 'CS101', 3);
         $this->makeActivity($progA, $subA, $semA, [$teacher]);
         $this->makeActivity($progA, $subA, $semA, [$teacher]); // split/second activity, same subject
 
-        // Cross-client prodi: subject 2 SKS -> 2.
+        // Cross-client prodi: subject 2 SKS, one activity -> 2.
         $subB = $this->makeSubject($progB, 'EE201', 2);
         $this->makeActivity($progB, $subB, $semB, [$teacher]);
 
@@ -140,9 +140,9 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertContains('EE', $abbrevs);
 
         $row = collect($report['rows'])->firstWhere('name', 'Bob');
-        $this->assertSame(3, $row['perProgram'][$progA->id]); // deduped across two activities
+        $this->assertSame(6, $row['perProgram'][$progA->id]); // per activity: 3 + 3
         $this->assertSame(2, $row['perProgram'][$progB->id]); // cross-client, matched period
-        $this->assertSame(5, $row['total']);
+        $this->assertSame(8, $row['total']);
     }
 
     public function test_team_teaching_gives_full_credit_to_each_lecturer(): void

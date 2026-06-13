@@ -18,7 +18,7 @@ Output format: **dosen name, SKS per prodi, total load**.
 |-------|----------|
 | **Rows** | This client's dosen — teachers whose home `program_id` belongs to a program under the logged-in client. |
 | **Columns (prodi counted)** | System-wide. Any prodi (including other clients/faculties) where the listed dosen have load. Columns are **dynamic**: only prodi with non-zero load appear. |
-| **SKS unit** | Subject `credit`, counted **once per (dosen, prodi, subject)** even when a subject has multiple activities (theory + lab / split). |
+| **SKS unit** | Subject `credit`, counted **per activity** — a subject split into several activities (theory + lab) is counted once per activity. |
 | **Team teaching** | Full SKS credited to **each** dosen on the activity (no split). |
 | **Period** | Active selected semester (shared `HasProgramSemester` context). |
 | **Cross-client semester match** | Semester is client-scoped. For system-wide scope, the active period is matched by **(academicYear.year_start + semester number 1/2)** across all clients. |
@@ -60,12 +60,12 @@ Output format: **dosen name, SKS per prodi, total load**.
        ->whereNull('a.deleted_at')
        ->whereNull('ap.deleted_at')
        ->distinct()
-       ->select('at.teacher_id', 'a.program_id', 'ap.subject_id', 's.credit')
+       ->select('a.id as activity_id', 'at.teacher_id', 'a.program_id', 's.credit')
        ->get();
    ```
-   `distinct` on (teacher_id, program_id, subject_id, credit) enforces "per subject
-   once". Aggregate in PHP: `matrix[teacher_id][program_id] += credit`;
-   `total[teacher_id] += credit`.
+   One row per (activity, teacher) — counts each activity's subject credit (`distinct`
+   on the activity id guards duplicate teacher pivot rows). Aggregate in PHP:
+   `matrix[teacher_id][program_id] += credit`; `total[teacher_id] += credit`.
    - Confirm actual table names against migrations before coding (e.g. `fetnet_activity_planning`).
 6. Lookups: `Teacher::whereIn('id', ...)` for name + code; `Program::whereIn('id', ...)`
    for `abbrev` (+ `name` for tooltip). Column set = sorted union of `program_id`s present.
