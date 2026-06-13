@@ -87,6 +87,7 @@ Route::middleware(['auth'])->prefix('program')->name('program.')->group(function
     Route::livewire('/data/teachers',       'pages::program.data.teachers.⚡idx')->name('data.teachers');
     Route::livewire('/data/students',       'pages::program.data.students.⚡idx')->name('data.students');
     Route::livewire('/data/activities',     'pages::program.data.activities.⚡idx')->name('data.activities');
+    Route::livewire('/data/workload',       'pages::program.data.workload.⚡idx')->name('data.workload');
     // Time constraints
     Route::livewire('/time/teachers',       'pages::program.time.teachers.⚡idx')->name('time.teachers');
     Route::livewire('/time/students',       'pages::program.time.students.⚡idx')->name('time.students');

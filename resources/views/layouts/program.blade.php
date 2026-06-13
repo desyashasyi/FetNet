@@ -77,6 +77,11 @@
         <x-icon name="o-table-cells" class="w-5 h-5" />
         <span class="text-[9px] font-medium leading-none">Activities</span>
     </a>
+    <a href="{{ route('program.data.workload') }}" wire:navigate
+       class="{{ $item }} {{ request()->routeIs('program.data.workload') ? $active : $dim }}">
+        <x-icon name="o-scale" class="w-5 h-5" />
+        <span class="text-[9px] font-medium leading-none">Workload</span>
+    </a>
 
     <div class="{{ $divider }}"></div>
 

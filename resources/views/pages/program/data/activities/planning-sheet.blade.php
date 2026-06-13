@@ -134,7 +134,7 @@ new class extends Component
 }; ?>
 
 <div>
-    <x-modal wire:model="modal" title="Subject Planning"
+    <x-modal wire:model="modal" title="Subject Planning" persistent
              separator class="modal-bottom" box-class="!max-w-3xl mx-auto !rounded-t-2xl !mb-14">
         <div class="space-y-4">
             <input type="text" class="w-0 h-0 opacity-0 absolute pointer-events-none" autofocus />

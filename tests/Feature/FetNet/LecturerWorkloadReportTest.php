@@ -187,4 +187,43 @@ class LecturerWorkloadReportTest extends TestCase
         $row = collect($report['rows'])->firstWhere('name', 'Erin');
         $this->assertSame(3, $row['total']); // only the CS101 odd-period, non-deleted activity
     }
+
+    public function test_for_program_rows_are_program_teachers_with_cross_prodi_columns(): void
+    {
+        $client   = $this->makeClient();
+        $progA    = $this->makeProgram($client, 'CS');
+        $semA     = $this->makeSemester($client, 2024, 1);
+        $teacher  = Teacher::create(['program_id' => $progA->id, 'name' => 'Bob', 'code' => 'BOB']);
+
+        // Same client, another program with a matching-period semester.
+        $progB    = $this->makeProgram($client, 'EE');
+        $semB     = $this->makeSemester($client, 2024, 1);
+
+        // Teacher of progA teaches in progA (3 SKS) and in progB (2 SKS).
+        $subA = $this->makeSubject($progA, 'CS101', 3);
+        $this->makeActivity($progA, $subA, $semA, [$teacher]);
+        $subB = $this->makeSubject($progB, 'EE201', 2);
+        $this->makeActivity($progB, $subB, $semB, [$teacher]);
+
+        // A teacher NOT in progA must not appear as a row.
+        $other = Teacher::create(['program_id' => $progB->id, 'name' => 'Zed', 'code' => 'ZED']);
+        $subZ  = $this->makeSubject($progB, 'EE301', 4);
+        $this->makeActivity($progB, $subZ, $semB, [$other]);
+
+        $report = app(LecturerWorkloadReport::class)->forProgram($progA, $semA->id);
+
+        // Rows = progA teachers only.
+        $names = array_column($report['rows'], 'name');
+        $this->assertContains('Bob', $names);
+        $this->assertNotContains('Zed', $names);
+
+        $abbrevs = array_column($report['programs'], 'abbrev');
+        $this->assertContains('CS', $abbrevs);
+        $this->assertContains('EE', $abbrevs); // cross-prodi column
+
+        $bob = collect($report['rows'])->firstWhere('name', 'Bob');
+        $this->assertSame(3, $bob['perProgram'][$progA->id]);
+        $this->assertSame(2, $bob['perProgram'][$progB->id]);
+        $this->assertSame(5, $bob['total']);
+    }
 }
