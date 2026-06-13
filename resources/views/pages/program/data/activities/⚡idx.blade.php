@@ -55,25 +55,6 @@ new #[Layout('layouts.program')] class extends Component
         $this->resetPage();
     }
 
-    public function openCreate(?int $subjectId = null): void
-    {
-        $this->dispatch('open-activity-create', subjectId: $subjectId);
-    }
-
-    public function openEdit(int $id): void
-    {
-        $this->dispatch('open-activity-edit', id: $id);
-    }
-
-    public function openSplit(int $id): void
-    {
-        $this->dispatch('open-activity-split', id: $id);
-    }
-
-    public function openPlanning(): void
-    {
-        $this->dispatch('open-planning');
-    }
 
     public function confirmDelete(int $id): void
     {
@@ -162,9 +143,9 @@ new #[Layout('layouts.program')] class extends Component
                       wire:click="$set('view','all')" />
         </div>
         @if($semesterId)
-            <x-button label="Planning" icon="o-calendar-days" class="btn-ghost btn-sm" wire:click="openPlanning" />
+            <x-button label="Planning" icon="o-calendar-days" class="btn-ghost btn-sm" wire:click="$dispatch('open-planning')" />
         @endif
-        <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="openCreate()" />
+        <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="$dispatch('open-activity-create')" />
     </div>
 
     @if($view === 'subject')
@@ -200,11 +181,11 @@ new #[Layout('layouts.program')] class extends Component
                                 </div>
                             </div>
                             <div class="flex items-center h-0 overflow-hidden group-hover:h-auto group-hover:overflow-visible transition-all">
-                                <button wire:click="openEdit({{ $activity->id }})"
+                                <button wire:click="$dispatch('open-activity-edit', { id: {{ $activity->id }} })"
                                         class="btn btn-ghost btn-xs btn-square" title="Edit">
                                     <x-icon name="o-pencil" class="w-3 h-3" />
                                 </button>
-                                <button wire:click="openSplit({{ $activity->id }})"
+                                <button wire:click="$dispatch('open-activity-split', { id: {{ $activity->id }} })"
                                         class="btn btn-ghost btn-xs btn-square" title="Split">
                                     <x-icon name="o-scissors" class="w-3 h-3" />
                                 </button>
@@ -222,7 +203,7 @@ new #[Layout('layouts.program')] class extends Component
 
             @scope('cell_action', $row)
                 <x-button icon="o-plus-circle" class="btn-ghost btn-sm btn-square"
-                          wire:click="openCreate({{ $row->id }})" tooltip="Add activity" />
+                          wire:click="$dispatch('open-activity-create', { subjectId: {{ $row->id }} })" tooltip="Add activity" />
             @endscope
 
         </x-table>
@@ -246,7 +227,7 @@ new #[Layout('layouts.program')] class extends Component
             @scope('cell_action', $row)
                 <div class="flex justify-end gap-1">
                     <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square"
-                              wire:click="openEdit({{ $row->id }})" tooltip="Edit" />
+                              wire:click="$dispatch('open-activity-edit', { id: {{ $row->id }} })" tooltip="Edit" />
                     <x-button icon="o-trash"  class="btn-ghost btn-sm btn-square text-error"
                               wire:click="confirmDelete({{ $row->id }})" tooltip="Delete" />
                 </div>

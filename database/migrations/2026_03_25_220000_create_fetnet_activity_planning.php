@@ -38,23 +38,26 @@ return new class extends Migration
                   ->cascadeOnDelete();
         });
 
-        // 3. Migrate existing data: create planning records for activities that have subject_id AND semester_id
-        DB::statement('
-            INSERT IGNORE INTO fetnet_activity_planning (subject_id, program_id, semester_id, created_at, updated_at)
-            SELECT DISTINCT subject_id, program_id, semester_id, NOW(), NOW()
-            FROM fetnet_activity
-            WHERE subject_id IS NOT NULL AND semester_id IS NOT NULL
-        ');
+        // 3. Migrate existing data: create planning records for activities that have subject_id AND semester_id.
+        //    MariaDB/MySQL-only backfill; no-op on a fresh DB (e.g. sqlite test runs) where the source is empty.
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('
+                INSERT IGNORE INTO fetnet_activity_planning (subject_id, program_id, semester_id, created_at, updated_at)
+                SELECT DISTINCT subject_id, program_id, semester_id, NOW(), NOW()
+                FROM fetnet_activity
+                WHERE subject_id IS NOT NULL AND semester_id IS NOT NULL
+            ');
 
-        // Update planning_id on activities via join
-        DB::statement('
-            UPDATE fetnet_activity a
-            JOIN fetnet_activity_planning p
-              ON a.subject_id = p.subject_id
-             AND a.program_id = p.program_id
-             AND a.semester_id = p.semester_id
-            SET a.planning_id = p.id
-        ');
+            // Update planning_id on activities via join
+            DB::statement('
+                UPDATE fetnet_activity a
+                JOIN fetnet_activity_planning p
+                  ON a.subject_id = p.subject_id
+                 AND a.program_id = p.program_id
+                 AND a.semester_id = p.semester_id
+                SET a.planning_id = p.id
+            ');
+        }
 
         // 4. Drop subject_id and semester_id from fetnet_activity
         Schema::table('fetnet_activity', function (Blueprint $table) {
@@ -83,12 +86,14 @@ return new class extends Migration
             $table->unsignedBigInteger('semester_id')->nullable()->after('subject_id');
         });
 
-        // Restore subject_id and semester_id from planning records
-        DB::statement('
-            UPDATE fetnet_activity a
-            JOIN fetnet_activity_planning p ON a.planning_id = p.id
-            SET a.subject_id = p.subject_id, a.semester_id = p.semester_id
-        ');
+        // Restore subject_id and semester_id from planning records (MariaDB/MySQL-only).
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('
+                UPDATE fetnet_activity a
+                JOIN fetnet_activity_planning p ON a.planning_id = p.id
+                SET a.subject_id = p.subject_id, a.semester_id = p.semester_id
+            ');
+        }
 
         // Drop planning_id
         Schema::table('fetnet_activity', function (Blueprint $table) {
