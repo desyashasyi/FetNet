@@ -35,11 +35,10 @@ class LecturerWorkloadReportTest extends TestCase
 
     private function makeSemester(Client $client, int $yearStart, int $sem): Semester
     {
-        $ay = AcademicYear::create([
-            'client_id'  => $client->id,
-            'year_start' => $yearStart,
-            'is_active'  => true,
-        ]);
+        $ay = AcademicYear::firstOrCreate(
+            ['client_id' => $client->id, 'year_start' => $yearStart],
+            ['is_active' => true],
+        );
 
         return Semester::create([
             'client_id'        => $client->id,
@@ -110,5 +109,82 @@ class LecturerWorkloadReportTest extends TestCase
 
         $this->assertSame([], $report['programs']);
         $this->assertSame([], $report['rows']);
+    }
+
+    public function test_counts_cross_client_program_in_matching_period_and_dedupes_subjects(): void
+    {
+        // Home client + program for the lecturer.
+        $clientA  = $this->makeClient();
+        $progA    = $this->makeProgram($clientA, 'CS');
+        $semA     = $this->makeSemester($clientA, 2024, 1); // odd, 2024
+        $teacher  = Teacher::create(['program_id' => $progA->id, 'name' => 'Bob', 'code' => 'BOB']);
+
+        // Another client/faculty with its own program + its own matching semester (same year_start + parity).
+        $clientB  = $this->makeClient();
+        $progB    = $this->makeProgram($clientB, 'EE');
+        $semB     = $this->makeSemester($clientB, 2024, 1); // odd, 2024 -> matches period
+
+        // Home prodi: one subject (3 SKS) split into TWO activities -> counted once = 3.
+        $subA = $this->makeSubject($progA, 'CS101', 3);
+        $this->makeActivity($progA, $subA, $semA, [$teacher]);
+        $this->makeActivity($progA, $subA, $semA, [$teacher]); // split/second activity, same subject
+
+        // Cross-client prodi: subject 2 SKS -> 2.
+        $subB = $this->makeSubject($progB, 'EE201', 2);
+        $this->makeActivity($progB, $subB, $semB, [$teacher]);
+
+        $report = app(LecturerWorkloadReport::class)->forClient($clientA, $semA->id);
+
+        $abbrevs = array_column($report['programs'], 'abbrev');
+        $this->assertContains('CS', $abbrevs);
+        $this->assertContains('EE', $abbrevs);
+
+        $row = collect($report['rows'])->firstWhere('name', 'Bob');
+        $this->assertSame(3, $row['perProgram'][$progA->id]); // deduped across two activities
+        $this->assertSame(2, $row['perProgram'][$progB->id]); // cross-client, matched period
+        $this->assertSame(5, $row['total']);
+    }
+
+    public function test_team_teaching_gives_full_credit_to_each_lecturer(): void
+    {
+        $client  = $this->makeClient();
+        $prog    = $this->makeProgram($client, 'CS');
+        $sem     = $this->makeSemester($client, 2024, 1);
+        $t1      = Teacher::create(['program_id' => $prog->id, 'name' => 'Carol', 'code' => 'CAR']);
+        $t2      = Teacher::create(['program_id' => $prog->id, 'name' => 'Dave', 'code' => 'DAV']);
+        $subject = $this->makeSubject($prog, 'CS101', 4);
+
+        $this->makeActivity($prog, $subject, $sem, [$t1, $t2]); // both teach the same activity
+
+        $report = app(LecturerWorkloadReport::class)->forClient($client, $sem->id);
+
+        $carol = collect($report['rows'])->firstWhere('name', 'Carol');
+        $dave  = collect($report['rows'])->firstWhere('name', 'Dave');
+        $this->assertSame(4, $carol['total']);
+        $this->assertSame(4, $dave['total']);
+    }
+
+    public function test_excludes_other_periods_and_soft_deleted_activities(): void
+    {
+        $client   = $this->makeClient();
+        $prog     = $this->makeProgram($client, 'CS');
+        $semOdd   = $this->makeSemester($client, 2024, 1); // active
+        $semEven  = $this->makeSemester($client, 2024, 2); // different parity -> excluded
+        $teacher  = Teacher::create(['program_id' => $prog->id, 'name' => 'Erin', 'code' => 'ERN']);
+
+        $counted  = $this->makeSubject($prog, 'CS101', 3);
+        $this->makeActivity($prog, $counted, $semOdd, [$teacher]);
+
+        $otherPeriod = $this->makeSubject($prog, 'CS201', 5);
+        $this->makeActivity($prog, $otherPeriod, $semEven, [$teacher]); // wrong period
+
+        $deletedSub = $this->makeSubject($prog, 'CS301', 5);
+        $deleted    = $this->makeActivity($prog, $deletedSub, $semOdd, [$teacher]);
+        $deleted->delete(); // soft-deleted -> excluded
+
+        $report = app(LecturerWorkloadReport::class)->forClient($client, $semOdd->id);
+
+        $row = collect($report['rows'])->firstWhere('name', 'Erin');
+        $this->assertSame(3, $row['total']); // only the CS101 odd-period, non-deleted activity
     }
 }
