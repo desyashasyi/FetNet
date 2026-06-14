@@ -17,7 +17,9 @@ new #[Layout('layouts.program')] class extends Component
     public ?int   $filterYear  = null;
     public bool   $delModal    = false;
     public bool   $delAllModal = false;
+    public bool   $delSelModal = false;
     public ?int   $deleteId    = null;
+    public array  $selected    = [];
 
     public array $curriculumYearOptions = [];
 
@@ -60,6 +62,32 @@ new #[Layout('layouts.program')] class extends Component
         $this->delModal = false;
         $this->deleteId = null;
         $this->warning('Subject deleted. Related activities also deleted.', position: 'toast-top toast-center');
+    }
+
+    public function confirmDeleteSelected(): void
+    {
+        if (! empty($this->selected)) $this->delSelModal = true;
+    }
+
+    public function deleteSelected(): void
+    {
+        $program = $this->program();
+        if (! $program || empty($this->selected)) { $this->delSelModal = false; return; }
+
+        // Iterate per model so the deleting hook cascades to related activities.
+        $count = 0;
+        Subject::where('program_id', $program->id)
+            ->whereIn('id', $this->selected)
+            ->chunkById(200, function ($subjects) use (&$count) {
+                foreach ($subjects as $s) { $s->delete(); $count++; }
+            });
+
+        $this->selected    = [];
+        $this->delSelModal = false;
+        $this->resetPage();
+        $this->dispatch('subject-changed');
+        $this->dispatch('refresh-subject-options');
+        $this->warning("{$count} subjects deleted. Related activities also deleted.", position: 'toast-top toast-center');
     }
 
     public function confirmDeleteAll(): void { $this->delAllModal = true; }
@@ -131,13 +159,19 @@ new #[Layout('layouts.program')] class extends Component
         <x-button label="Types"  icon="o-tag"           class="btn-ghost btn-sm" wire:click="$dispatch('open-subject-type-modal')" />
         <x-button label="Import" icon="o-arrow-up-tray" class="btn-ghost btn-sm" wire:click="$dispatch('open-subject-import')" />
         <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="$dispatch('open-subject-create')" />
+        @if(count($selected) > 0)
+            <x-button label="Delete Selected ({{ count($selected) }})" icon="o-trash"
+                      class="btn-error btn-sm" wire:click="confirmDeleteSelected" />
+        @endif
         @if($subjectCount > 0)
             <x-button label="Delete All" icon="o-trash" class="btn-ghost btn-sm text-error" wire:click="confirmDeleteAll" />
         @endif
     </div>
 
     <x-card>
-        <x-table :striped="true" :headers="$headers" :rows="$subjects" with-pagination container-class="overflow-hidden" class="table-fixed">
+        <x-table :striped="true" :headers="$headers" :rows="$subjects" with-pagination
+                 selectable wire:model.live="selected"
+                 container-class="overflow-hidden" class="table-fixed">
             @scope('cell_curriculum_yr', $row)
                 <div class="text-center">@if($row->curriculum_yr !== '—'){{ $row->curriculum_yr }}@else<span class="text-base-content/20">—</span>@endif</div>
             @endscope
@@ -168,6 +202,16 @@ new #[Layout('layouts.program')] class extends Component
         <x-slot:actions>
             <x-button label="Cancel" icon="o-x-circle" wire:click="$set('delModal', false)" />
             <x-button label="Delete" icon="o-trash"    class="btn-error" wire:click="delete" />
+        </x-slot:actions>
+    </x-modal>
+
+    <x-modal wire:model="delSelModal" title="Delete Selected Subjects" box-class="!max-w-sm">
+        <p class="text-base-content/70 text-sm">
+            Delete {{ count($selected) }} selected subject(s)? All related activities will also be deleted. This cannot be undone.
+        </p>
+        <x-slot:actions>
+            <x-button label="Cancel" icon="o-x-circle" wire:click="$set('delSelModal', false)" />
+            <x-button label="Delete Selected" icon="o-trash" class="btn-error" wire:click="deleteSelected" spinner="deleteSelected" />
         </x-slot:actions>
     </x-modal>
 
