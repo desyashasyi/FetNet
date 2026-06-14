@@ -18,6 +18,7 @@ new class extends Component
     #[Reactive] public ?int $semesterId = null;
 
     public bool   $modal              = false;
+    public bool   $planDirty          = false;
     public string $planSearch         = '';
     public ?int   $planFilterYear     = null;
     public ?int   $planFilterSemester = null;
@@ -45,10 +46,19 @@ new class extends Component
     #[On('open-planning')]
     public function open(): void
     {
-        $this->reset(['planSearch', 'planFilterYear', 'planFilterSemester']);
+        $this->reset(['planSearch', 'planFilterYear', 'planFilterSemester', 'planDirty']);
         $this->planPage = 1;
         $this->loadPlanSubjects();
         $this->modal = true;
+    }
+
+    public function closePlanning(): void
+    {
+        $this->modal = false;
+        if ($this->planDirty) {
+            $this->dispatch('planning-changed');
+            $this->planDirty = false;
+        }
     }
 
     public function loadPlanSubjects(): void
@@ -110,8 +120,8 @@ new class extends Component
             ]);
         }
 
+        $this->planDirty = true;
         $this->loadPlanSubjects();
-        $this->dispatch('planning-changed');
     }
 
     private function planAll(string $parity): void
@@ -131,8 +141,8 @@ new class extends Component
                 if ($record->trashed()) $record->restore();
             });
 
+        $this->planDirty = true;
         $this->loadPlanSubjects();
-        $this->dispatch('planning-changed');
     }
 
     public function planAllOdd(): void  { $this->planAll('odd'); }
@@ -203,7 +213,7 @@ new class extends Component
             @endif
         </div>
         <x-slot:actions>
-            <x-button label="Done" icon="o-check" class="btn-primary" wire:click="$set('modal', false)" />
+            <x-button label="Done" icon="o-check" class="btn-primary" wire:click="closePlanning" />
         </x-slot:actions>
     </x-modal>
 </div>
