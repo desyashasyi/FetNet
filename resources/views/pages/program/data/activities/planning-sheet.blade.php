@@ -17,9 +17,10 @@ new class extends Component
     #[Reactive] public ?int $programId  = null;
     #[Reactive] public ?int $semesterId = null;
 
-    public bool  $modal              = false;
-    public ?int  $planFilterYear     = null;
-    public ?int  $planFilterSemester = null;
+    public bool   $modal              = false;
+    public string $planSearch         = '';
+    public ?int   $planFilterYear     = null;
+    public ?int   $planFilterSemester = null;
     public array $planSubjects       = [];
     public int   $planPage           = 1;
     public int   $planTotal          = 0;
@@ -44,7 +45,7 @@ new class extends Component
     #[On('open-planning')]
     public function open(): void
     {
-        $this->reset(['planFilterYear', 'planFilterSemester']);
+        $this->reset(['planSearch', 'planFilterYear', 'planFilterSemester']);
         $this->planPage = 1;
         $this->loadPlanSubjects();
         $this->modal = true;
@@ -57,6 +58,10 @@ new class extends Component
         $all = Subject::where('program_id', $this->programId)
             ->when($this->planFilterYear,     fn($q) => $q->where('curriculum_year_id', $this->planFilterYear))
             ->when($this->planFilterSemester, fn($q) => $q->where('semester', $this->planFilterSemester))
+            ->when(trim($this->planSearch) !== '', fn($q) => $q->where(
+                fn($w) => $w->where('name', 'like', '%'.trim($this->planSearch).'%')
+                            ->orWhere('code', 'like', '%'.trim($this->planSearch).'%')
+            ))
             ->orderBy('semester')->orderBy('code')->get();
 
         $this->planTotal = $all->count();
@@ -76,6 +81,7 @@ new class extends Component
             ])->values()->toArray();
     }
 
+    public function updatedPlanSearch(): void          { $this->planPage = 1; $this->loadPlanSubjects(); }
     public function updatedPlanFilterYear(): void     { $this->planPage = 1; $this->loadPlanSubjects(); }
     public function updatedPlanFilterSemester(): void { $this->planPage = 1; $this->loadPlanSubjects(); }
 
@@ -143,6 +149,8 @@ new class extends Component
                 <x-alert title="Select a semester first" icon="o-exclamation-triangle" class="alert-warning" />
             @else
                 <div class="flex flex-wrap items-end gap-3">
+                    <x-input wire:model.live.debounce.300ms="planSearch" placeholder="Search subject..."
+                             icon="o-magnifying-glass" clearable class="w-56" />
                     <x-select wire:model.live="planFilterYear"
                               :options="$this->curriculumYearOptions" placeholder="All Curricula" class="w-36" />
                     <x-select wire:model.live="planFilterSemester"
