@@ -226,4 +226,27 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertSame(2, $bob['perProgram'][$progB->id]);
         $this->assertSame(5, $bob['total']);
     }
+
+    public function test_for_program_includes_guest_teachers_from_other_programs(): void
+    {
+        $client  = $this->makeClient();
+        $progA   = $this->makeProgram($client, 'CS');
+        $semA    = $this->makeSemester($client, 2024, 1);
+
+        // Guest lecturer whose HOME program is progB but who teaches in progA.
+        $progB   = $this->makeProgram($client, 'EE');
+        $guest   = Teacher::create(['program_id' => $progB->id, 'name' => 'Guest', 'code' => 'GST']);
+
+        $subA = $this->makeSubject($progA, 'CS101', 3);
+        $this->makeActivity($progA, $subA, $semA, [$guest]);
+
+        $report = app(LecturerWorkloadReport::class)->forProgram($progA, $semA->id);
+
+        $names = array_column($report['rows'], 'name');
+        $this->assertContains('Guest', $names); // teaches in progA despite home = progB
+
+        $row = collect($report['rows'])->firstWhere('name', 'Guest');
+        $this->assertSame(3, $row['perProgram'][$progA->id]);
+        $this->assertSame(3, $row['total']);
+    }
 }
