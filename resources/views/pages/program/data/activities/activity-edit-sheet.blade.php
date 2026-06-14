@@ -174,11 +174,24 @@ new class extends Component {
                     ->where("name", "like", "%{$value}%")
                     ->orWhereIn("id", $this->studentIds),
             )
+            ->with(["parent.parent"])
             ->orderBy("name")
             ->limit(15)
             ->get()
-            ->map(fn($s) => ["id" => $s->id, "name" => $s->name])
+            ->map(fn($s) => ["id" => $s->id, "name" => $this->studentPath($s)])
+            ->sortBy("name")
+            ->values()
             ->toArray();
+    }
+
+    private function studentPath(Student $student): string
+    {
+        $names = [];
+        for ($node = $student; $node; $node = $node->parent) {
+            $names[] = $node->name;
+        }
+
+        return implode(" / ", array_reverse($names));
     }
 
     public function updatedSubjectId(): void
