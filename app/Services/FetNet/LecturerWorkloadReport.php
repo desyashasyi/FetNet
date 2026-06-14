@@ -20,10 +20,29 @@ class LecturerWorkloadReport
         return $this->forTeacherIds($teacherIds, $activeSemesterId);
     }
 
-    /** Recap for a single program's lecturers (home program = this program). */
+    /**
+     * Recap for everyone teaching in this program during the active period,
+     * including lecturers whose home program is elsewhere (guests / cluster).
+     */
     public function forProgram(Program $program, ?int $activeSemesterId): array
     {
-        $teacherIds = Teacher::where('program_id', $program->id)->pluck('id');
+        $periodSemesterIds = $this->periodSemesterIds($activeSemesterId);
+
+        if ($periodSemesterIds->isEmpty()) {
+            return ['programs' => [], 'rows' => []];
+        }
+
+        // Teachers attached to any non-deleted activity scheduled in THIS program
+        // during the active period, regardless of their home program.
+        $teacherIds = DB::table('fetnet_activity as a')
+            ->join('fetnet_activity_teacher as at', 'at.activity_id', '=', 'a.id')
+            ->join('fetnet_activity_planning as ap', 'ap.id', '=', 'a.planning_id')
+            ->where('a.program_id', $program->id)
+            ->whereIn('ap.semester_id', $periodSemesterIds)
+            ->whereNull('a.deleted_at')
+            ->whereNull('ap.deleted_at')
+            ->distinct()
+            ->pluck('at.teacher_id');
 
         return $this->forTeacherIds($teacherIds, $activeSemesterId);
     }
@@ -40,18 +59,7 @@ class LecturerWorkloadReport
     {
         $empty = ['programs' => [], 'rows' => []];
 
-        $active = $activeSemesterId
-            ? Semester::with('academicYear')->find($activeSemesterId)
-            : null;
-
-        if (! $active || ! $active->academicYear) {
-            return $empty;
-        }
-
-        // All semesters system-wide matching the active period (same year_start + parity).
-        $periodSemesterIds = Semester::where('semester', $active->semester)
-            ->whereHas('academicYear', fn ($q) => $q->where('year_start', $active->academicYear->year_start))
-            ->pluck('id');
+        $periodSemesterIds = $this->periodSemesterIds($activeSemesterId);
 
         if ($periodSemesterIds->isEmpty() || $teacherIds->isEmpty()) {
             return $empty;
@@ -105,5 +113,25 @@ class LecturerWorkloadReport
             ])->values()->toArray();
 
         return ['programs' => $programs, 'rows' => $rows];
+    }
+
+    /**
+     * Semester ids system-wide matching the active period (same year_start + parity).
+     *
+     * @return Collection<int, int>
+     */
+    private function periodSemesterIds(?int $activeSemesterId): Collection
+    {
+        $active = $activeSemesterId
+            ? Semester::with('academicYear')->find($activeSemesterId)
+            : null;
+
+        if (! $active || ! $active->academicYear) {
+            return collect();
+        }
+
+        return Semester::where('semester', $active->semester)
+            ->whereHas('academicYear', fn ($q) => $q->where('year_start', $active->academicYear->year_start))
+            ->pluck('id');
     }
 }
