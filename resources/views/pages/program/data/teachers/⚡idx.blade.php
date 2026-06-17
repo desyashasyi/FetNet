@@ -13,9 +13,10 @@ new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast;
 
-    public string $search   = '';
-    public bool   $delModal = false;
-    public ?int   $deleteId = null;
+    public string $search          = '';
+    public ?int   $filterProgramId = null;
+    public bool   $delModal        = false;
+    public ?int   $deleteId        = null;
 
     private function program(): ?Program
     {
@@ -31,6 +32,7 @@ new #[Layout('layouts.program')] class extends Component
     }
 
     public function updatedSearch(): void { $this->resetPage(); }
+    public function updatedFilterProgramId(): void { $this->resetPage(); }
 
     public function openCreate(): void { $this->dispatch('open-teacher-create'); }
     public function openEdit(int $id): void { $this->dispatch('open-teacher-edit', id: $id); }
@@ -61,6 +63,18 @@ new #[Layout('layouts.program')] class extends Component
         $ids       = $program ? $this->clusterProgramIds($program) : [];
         $inCluster = count($ids) > 1;
 
+        // Program-study selector lists the programs in the same cluster.
+        $programOptions = $inCluster
+            ? Program::whereIn('id', $ids)->orderBy('abbrev')->get(['id', 'abbrev', 'name'])
+                ->map(fn($p) => ['id' => $p->id, 'name' => ($p->abbrev ?: '?') . ' — ' . $p->name])
+                ->toArray()
+            : [];
+
+        // Filter own teachers to one cluster program when chosen, else the whole cluster.
+        $activeIds = ($this->filterProgramId && in_array($this->filterProgramId, $ids))
+            ? [$this->filterProgramId]
+            : $ids;
+
         $headers = [
             ['key' => 'code',      'label' => 'Code',      'class' => 'w-1/12'],
             ['key' => 'univ_code', 'label' => 'Univ Code', 'class' => 'w-1/12'],
@@ -73,7 +87,7 @@ new #[Layout('layouts.program')] class extends Component
         $headers[] = ['key' => 'action',     'label' => '',         'class' => 'w-2/12 text-right'];
 
         $ownTeachers = Teacher::with(['program:id,abbrev,name', 'guestPrograms:id,abbrev'])
-                ->whereIn('program_id', $ids ?: [0])
+                ->whereIn('program_id', $activeIds ?: [0])
                 ->when($this->search, fn($q) => $q
                     ->where('name',         'like', "%{$this->search}%")
                     ->orWhere('code',        'like', "%{$this->search}%")
@@ -103,7 +117,8 @@ new #[Layout('layouts.program')] class extends Component
             : collect();
 
         return [
-            'inCluster'    => $inCluster,
+            'inCluster'      => $inCluster,
+            'programOptions' => $programOptions,
             'headers'      => $headers,
             'guestHeaders' => $headers,
             'ownTeachers'  => $ownTeachers,
@@ -116,6 +131,10 @@ new #[Layout('layouts.program')] class extends Component
     <x-header title="Teachers" subtitle="Manage lecturers & instructors" separator />
 
     <div class="flex flex-wrap items-center gap-3 mb-4">
+        @if($inCluster)
+            <x-select wire:model.live="filterProgramId" :options="$programOptions"
+                      placeholder="All Programs" class="w-56" />
+        @endif
         <x-input placeholder="Search..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
         <x-button label="Import" icon="o-arrow-up-tray" class="btn-ghost btn-sm" wire:click="openImport" />
         <x-button label="Guest Teacher" icon="o-user-plus" class="btn-ghost btn-sm" wire:click="openGuestSearch" />
