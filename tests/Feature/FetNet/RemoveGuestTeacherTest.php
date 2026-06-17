@@ -30,7 +30,8 @@ class RemoveGuestTeacherTest extends TestCase
         $this->assertSame(1, $program->guestTeachers()->count());
 
         Livewire::actingAs($user)->test(self::PAGE)
-            ->assertSee('Guesty')                          // shown in Guest Teachers card
+            ->assertSee('Guesty')                          // shown in the main table
+            ->assertSeeHtml('guest')                       // flagged with a guest sign
             ->call('confirmRemoveGuest', $guest->id)       // opens confirmation
             ->assertSet('guestRemoveModal', true)
             ->assertSet('guestRemoveId', $guest->id)

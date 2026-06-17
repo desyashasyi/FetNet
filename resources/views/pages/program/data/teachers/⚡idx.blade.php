@@ -95,43 +95,34 @@ new #[Layout('layouts.program')] class extends Component
         $headers[] = ['key' => 'phone',      'label' => 'Phone',    'class' => 'w-1/12'];
         $headers[] = ['key' => 'action',     'label' => '',         'class' => 'w-2/12 text-right'];
 
-        $ownTeachers = Teacher::with(['program:id,abbrev,name', 'guestPrograms:id,abbrev'])
-                ->whereIn('program_id', $activeIds ?: [0])
-                ->when($this->search, fn($q) => $q
+        // Guest teachers (borrowed from outside the cluster) are listed in the same
+        // table, flagged is_guest. Hide them when filtering to another cluster program.
+        $guestIds      = $program ? $program->guestTeachers()->pluck('fetnet_teacher.id')->toArray() : [];
+        $includeGuests = ! ($this->filterProgramId && $this->filterProgramId !== $program?->id);
+
+        $teachers = Teacher::with(['program:id,abbrev,name', 'guestPrograms:id,abbrev'])
+                ->where(function ($q) use ($activeIds, $guestIds, $includeGuests) {
+                    $q->whereIn('program_id', $activeIds ?: [0]);
+                    if ($includeGuests && $guestIds) $q->orWhereIn('id', $guestIds);
+                })
+                ->when($this->search, fn($q) => $q->where(fn($w) => $w
                     ->where('name',         'like', "%{$this->search}%")
                     ->orWhere('code',        'like', "%{$this->search}%")
-                    ->orWhere('employee_id', 'like', "%{$this->search}%"))
+                    ->orWhere('employee_id', 'like', "%{$this->search}%")))
                 ->orderBy('name')->paginate(6)
                 ->through(fn($t) => tap($t, fn($item) => [
+                    $item->is_guest      = in_array($t->id, $guestIds),
                     $item->full_name     = $t->full_name,
                     $item->study_program = $t->program?->abbrev ?? '-',
                     $item->program_name  = $t->program?->name  ?? '-',
                     $item->guest_abbrevs = $t->guestPrograms->pluck('abbrev')->toArray(),
                 ]));
 
-        $guestTeachers = $program
-            ? $program->guestTeachers()
-                ->with('program:id,abbrev,name')
-                ->when($this->search, fn($q) => $q
-                    ->where('fetnet_teacher.name',         'like', "%{$this->search}%")
-                    ->orWhere('fetnet_teacher.code',        'like', "%{$this->search}%")
-                    ->orWhere('fetnet_teacher.employee_id', 'like', "%{$this->search}%"))
-                ->orderBy('fetnet_teacher.name')->get()
-                ->map(fn($t) => tap($t, fn($item) => [
-                    $item->full_name     = $t->full_name,
-                    $item->study_program = $t->program?->abbrev ?? '-',
-                    $item->program_name  = $t->program?->name  ?? '-',
-                    $item->guest_abbrevs = [],
-                ]))
-            : collect();
-
         return [
             'inCluster'      => $inCluster,
             'programOptions' => $programOptions,
             'headers'      => $headers,
-            'guestHeaders' => $headers,
-            'ownTeachers'  => $ownTeachers,
-            'guestTeachers'=> $guestTeachers,
+            'teachers'     => $teachers,
         ];
     }
 }; ?>
@@ -151,9 +142,20 @@ new #[Layout('layouts.program')] class extends Component
     </div>
 
     <x-card>
-        <x-table :striped="true" :headers="$headers" :rows="$ownTeachers" with-pagination container-class="overflow-hidden" class="table-fixed">
+        <x-table :striped="true" :headers="$headers" :rows="$teachers" with-pagination container-class="overflow-hidden" class="table-fixed">
+            @scope('cell_full_name', $row)
+                <div class="flex items-center gap-2">
+                    <span class="truncate">{{ $row->full_name }}</span>
+                    @if($row->is_guest)
+                        <x-badge value="guest" icon="o-user-plus"
+                                 class="badge-warning badge-sm font-semibold shrink-0" />
+                    @endif
+                </div>
+            @endscope
             @scope('cell_guest_info', $row)
-                @if(count($row->guest_abbrevs))
+                @if($row->is_guest)
+                    <span class="text-xs text-warning font-medium">from {{ $row->study_program }}</span>
+                @elseif(count($row->guest_abbrevs))
                     <div x-data="{ open: false }" class="relative">
                         <x-button label="{{ count($row->guest_abbrevs) }}" icon="o-building-office"
                                   class="btn-ghost btn-xs" x-on:click="open = !open" />
@@ -170,30 +172,19 @@ new #[Layout('layouts.program')] class extends Component
             @endscope
             @scope('cell_action', $row)
                 <div class="flex justify-end gap-1">
-                    <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square"
-                              wire:click="openEdit({{ $row->id }})" tooltip="Edit" />
-                    <x-button icon="o-trash"  class="btn-ghost btn-sm btn-square text-error"
-                              wire:click="confirmDelete({{ $row->id }})" tooltip="Delete" />
+                    @if($row->is_guest)
+                        <x-button icon="o-x-mark" class="btn-ghost btn-sm btn-square text-error"
+                                  wire:click="confirmRemoveGuest({{ $row->id }})" tooltip="Remove guest" />
+                    @else
+                        <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square"
+                                  wire:click="openEdit({{ $row->id }})" tooltip="Edit" />
+                        <x-button icon="o-trash"  class="btn-ghost btn-sm btn-square text-error"
+                                  wire:click="confirmDelete({{ $row->id }})" tooltip="Delete" />
+                    @endif
                 </div>
             @endscope
         </x-table>
     </x-card>
-
-    @if($guestTeachers->isNotEmpty())
-    <x-card title="Guest Teachers" class="mt-4">
-        <x-table :striped="true" :headers="$guestHeaders" :rows="$guestTeachers" container-class="overflow-hidden" class="table-fixed">
-            @scope('cell_guest_info', $row)
-                <x-badge value="Guest" class="badge-warning badge-sm badge-dash" />
-            @endscope
-            @scope('cell_action', $row)
-                <div class="flex justify-end gap-1">
-                    <x-button icon="o-x-mark" class="btn-ghost btn-sm btn-square text-error"
-                              wire:click="confirmRemoveGuest({{ $row->id }})" tooltip="Remove guest" />
-                </div>
-            @endscope
-        </x-table>
-    </x-card>
-    @endif
 
     <livewire:pages::program.data.teachers.teacher-edit-sheet />
     <livewire:pages::program.data.teachers.guest-search-sheet />
