@@ -176,7 +176,7 @@ new class extends Component {
             )
             ->with(["parent.parent"])
             ->orderBy("name")
-            ->limit(15)
+            ->limit(500)
             ->get()
             ->map(fn($s) => ["id" => $s->id, "name" => $this->studentPath($s)])
             ->sortBy("name")
