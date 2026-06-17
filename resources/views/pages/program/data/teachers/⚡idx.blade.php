@@ -17,6 +17,8 @@ new #[Layout('layouts.program')] class extends Component
     public ?int   $filterProgramId = null;
     public bool   $delModal        = false;
     public ?int   $deleteId        = null;
+    public bool   $guestRemoveModal = false;
+    public ?int   $guestRemoveId    = null;
 
     private function program(): ?Program
     {
@@ -48,10 +50,17 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Teacher deleted.', position: 'toast-top toast-center');
     }
 
-    public function removeGuestTeacher(int $teacherId): void
+    public function confirmRemoveGuest(int $id): void { $this->guestRemoveId = $id; $this->guestRemoveModal = true; }
+
+    public function removeGuestTeacher(?int $teacherId = null): void
     {
-        $this->program()->guestTeachers()->detach($teacherId);
-        $this->success('Guest teacher removed.', position: 'toast-top toast-center');
+        $teacherId ??= $this->guestRemoveId;
+        if ($teacherId) {
+            $this->program()->guestTeachers()->detach($teacherId);
+            $this->success('Guest teacher removed.', position: 'toast-top toast-center');
+        }
+        $this->guestRemoveModal = false;
+        $this->guestRemoveId    = null;
     }
 
     #[On('teacher-changed')]
@@ -179,7 +188,7 @@ new #[Layout('layouts.program')] class extends Component
             @scope('cell_action', $row)
                 <div class="flex justify-end gap-1">
                     <x-button icon="o-x-mark" class="btn-ghost btn-sm btn-square text-error"
-                              wire:click="removeGuestTeacher({{ $row->id }})" tooltip="Remove guest" />
+                              wire:click="confirmRemoveGuest({{ $row->id }})" tooltip="Remove guest" />
                 </div>
             @endscope
         </x-table>
@@ -195,6 +204,14 @@ new #[Layout('layouts.program')] class extends Component
         <x-slot:actions>
             <x-button label="Cancel" icon="o-x-circle" wire:click="$set('delModal', false)" />
             <x-button label="Delete" icon="o-trash"    class="btn-error" wire:click="delete" />
+        </x-slot:actions>
+    </x-modal>
+
+    <x-modal wire:model="guestRemoveModal" title="Remove Guest Teacher" box-class="!max-w-sm">
+        <p class="text-base-content/70 text-sm">Remove this guest teacher from your program? Their own record is not deleted.</p>
+        <x-slot:actions>
+            <x-button label="Cancel" icon="o-x-circle" wire:click="$set('guestRemoveModal', false)" />
+            <x-button label="Remove" icon="o-x-mark"   class="btn-error" wire:click="removeGuestTeacher" />
         </x-slot:actions>
     </x-modal>
 </div>
