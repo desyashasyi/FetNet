@@ -8,6 +8,12 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Students page for the signed-in program: renders the batch → group → sub-group
+ * hierarchy as nested cards, with add/edit (via the form sheet) at each level and a
+ * cascade delete. Uses HasProgramSemester for the year/semester context selectors.
+ * Hosts student-form-sheet.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast, HasProgramSemester;
@@ -15,24 +21,29 @@ new #[Layout('layouts.program')] class extends Component
     public bool $delModal = false;
     public ?int $deleteId = null;
 
+    /** The signed-in user's program; scopes the hierarchy. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $program = $this->program();
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
+    /** Open the form sheet for a batch / group at the right level. */
     public function openCreateBatch(): void { $this->dispatch('open-batch-create'); }
     public function openEditBatch(int $id): void { $this->dispatch('open-batch-edit', id: $id); }
     public function openAddGroup(int $parentId): void { $this->dispatch('open-group-create', parentId: $parentId); }
     public function openEditGroup(int $id): void { $this->dispatch('open-group-edit', id: $id); }
 
+    /** Open the delete confirmation for a batch/group/sub-group. */
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->delModal = true; }
 
+    /** Delete the confirmed node; descendants and activity links cascade away. */
     public function delete(): void
     {
         Student::findOrFail($this->deleteId)->delete();
@@ -40,9 +51,11 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Deleted (including sub-groups).', position: 'toast-top toast-center');
     }
 
+    /** Re-render after the form sheet saves. */
     #[On('student-changed')]
     public function refreshFromChild(): void {}
 
+    /** Top-level batches (parent_id null) with two levels of children eager-loaded. */
     public function with(): array
     {
         $program = $this->program();

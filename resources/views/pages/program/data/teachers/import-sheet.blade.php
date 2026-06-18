@@ -8,6 +8,12 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
 
+/**
+ * Teacher import sheet: upload an .xlsx/.xls, queue a TeachersImportJob, and react to the
+ * broadcast TeachersImportEvent (toast + refresh the listing). Rows naming another cluster
+ * program attach lecturers as guests. Serves a program-seeded template. See
+ * [[fetnet-job-events]].
+ */
 new class extends Component
 {
     use WithFileUploads, Toast;
@@ -16,16 +22,19 @@ new class extends Component
     public bool  $importing  = false;
     public mixed $importFile = null;
 
+    /** The signed-in user's program (import target). */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Listen for the import-finished broadcast. */
     public function getListeners(): array
     {
         return ['echo:teachers-import,.TeachersImportEvent' => 'onImportDone'];
     }
 
+    /** On import finish: toast the result and refresh the teachers list. */
     public function onImportDone(array $event): void
     {
         $this->importing = false;
@@ -35,6 +44,7 @@ new class extends Component
         $this->dispatch('teacher-changed');
     }
 
+    /** Open the import sheet (clears any previous file). */
     #[On('open-teacher-import')]
     public function open(): void
     {
@@ -42,12 +52,14 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Download the teachers template seeded with this program's abbrev. */
     public function downloadTemplate(): mixed
     {
         $abbrev = $this->program()?->abbrev ?? '';
         return \Maatwebsite\Excel\Facades\Excel::download(new TeachersTemplateExport($abbrev), 'teachers_template.xlsx');
     }
 
+    /** Validate + store the upload and dispatch the queued import job. */
     public function import(): void
     {
         $this->validate(['importFile' => 'required|file|mimes:xlsx,xls|max:5120']);

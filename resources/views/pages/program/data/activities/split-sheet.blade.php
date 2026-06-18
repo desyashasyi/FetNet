@@ -6,6 +6,11 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Split sheet: break an activity's total duration into ordered sub-activities (separate
+ * sessions). Enforces that the sub-durations sum to the activity's total, replaces the
+ * existing SubActivity rows, and emits 'activity-changed'.
+ */
 new class extends Component
 {
     use Toast;
@@ -15,6 +20,7 @@ new class extends Component
     public int   $splitTotal      = 0;
     public array $splits          = [];
 
+    /** Open for one activity, prefilling existing sub-activities or a single full row. */
     #[On('open-activity-split')]
     public function open(int $id): void
     {
@@ -29,17 +35,20 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Append an empty (1-hr) sub-activity row. */
     public function addSplit(): void
     {
         $this->splits[] = ['duration' => 1];
     }
 
+    /** Remove the sub-activity row at the given index (re-indexing). */
     public function removeSplit(int $index): void
     {
         array_splice($this->splits, $index, 1);
         $this->splits = array_values($this->splits);
     }
 
+    /** Validate the sum equals the total, replace SubActivity rows, emit 'activity-changed'. */
     public function saveSplits(): void
     {
         $used = collect($this->splits)->sum('duration');

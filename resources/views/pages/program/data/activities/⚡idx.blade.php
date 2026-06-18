@@ -10,6 +10,13 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Activities page for the signed-in program. Two views: "By Subject" (subjects with
+ * their activities as inline class badges) and "All" (flat activity table), both scoped
+ * to the chosen academic year + semester (HasProgramSemester trait). Supports add/edit
+ * (sheet), split into sub-activities, toggle active, delete, and the subject-planning
+ * modal. Hosts the activity-edit, split, tag-manager, and planning child components.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast, HasProgramSemester;
@@ -27,26 +34,31 @@ new #[Layout('layouts.program')] class extends Component
         ['key' => 'action',   'label' => '',         'class' => 'w-1/12 align-top text-right'],
     ];
 
+    /** The signed-in user's program; scopes every query on this page. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $program = $this->program();
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
+    /** Search / view changes reset pagination. */
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedView(): void  { $this->resetPage(); }
 
+    /** Persist the chosen semester and reset pagination. */
     public function updatedSemesterId(): void
     {
         $this->persistSemester();
         $this->resetPage();
     }
 
+    /** Changing academic year clears the semester, reloads options, persists, resets page. */
     public function updatedAcademicYearId(): void
     {
         $this->semesterId = null;
@@ -56,12 +68,14 @@ new #[Layout('layouts.program')] class extends Component
     }
 
 
+    /** Open the delete confirmation for one activity. */
     public function confirmDelete(int $id): void
     {
         $this->deleteId = $id;
         $this->delModal = true;
     }
 
+    /** Delete the confirmed activity (its teacher/student assignments detach). */
     public function delete(): void
     {
         Activity::findOrFail($this->deleteId)->delete();
@@ -70,12 +84,14 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Activity deleted.', position: 'toast-top toast-center');
     }
 
+    /** Flip an activity's active flag (the dot toggle in the By-Subject view). */
     public function toggleActive(int $id): void
     {
         $activity = Activity::findOrFail($id);
         $activity->update(['active' => ! $activity->active]);
     }
 
+    /** Re-render after a child sheet saves an activity or planning changes. */
     #[On('activity-changed')]
     #[On('planning-changed')]
     public function refreshFromChild(): void
@@ -83,6 +99,11 @@ new #[Layout('layouts.program')] class extends Component
         // empty: triggers re-render after child save
     }
 
+    /**
+     * View data for both modes: $subjects (paginated subjects with their semester-scoped
+     * activities eager-loaded, for the By-Subject view) and $activities (flat paginated
+     * activities decorated with display labels, for the All view), plus the program id.
+     */
     public function with(): array
     {
         $program = $this->program();

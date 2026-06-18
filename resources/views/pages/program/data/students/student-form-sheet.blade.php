@@ -6,6 +6,12 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Form sheet for student hierarchy nodes. Two modals: a batch form (top-level, parent_id
+ * null, with batch year + headcount) and a group form (group or sub-group under a parent,
+ * with headcount). Both create/update Student rows for the program and emit
+ * 'student-changed'.
+ */
 new class extends Component
 {
     use Toast;
@@ -31,6 +37,7 @@ new class extends Component
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Open the batch modal for a new top-level batch. */
     #[On('open-batch-create')]
     public function openCreateBatch(): void
     {
@@ -39,6 +46,7 @@ new class extends Component
         $this->batchModal = true;
     }
 
+    /** Open the batch modal prefilled from an existing batch. */
     #[On('open-batch-edit')]
     public function openEditBatch(int $id): void
     {
@@ -51,6 +59,7 @@ new class extends Component
         $this->batchModal = true;
     }
 
+    /** Validate and create/update a batch (parent_id null), then emit 'student-changed'. */
     public function saveBatch(): void
     {
         $this->validate([
@@ -77,6 +86,7 @@ new class extends Component
         $this->dispatch('student-changed');
     }
 
+    /** Open the group modal for a new child under the given parent. */
     #[On('open-group-create')]
     public function openAddGroup(int $parentId): void
     {
@@ -86,6 +96,7 @@ new class extends Component
         $this->groupModal    = true;
     }
 
+    /** Open the group modal prefilled from an existing group/sub-group. */
     #[On('open-group-edit')]
     public function openEditGroup(int $id): void
     {
@@ -98,6 +109,7 @@ new class extends Component
         $this->groupModal    = true;
     }
 
+    /** Validate and create/update a group/sub-group under its parent, emit 'student-changed'. */
     public function saveGroup(): void
     {
         $this->validate([

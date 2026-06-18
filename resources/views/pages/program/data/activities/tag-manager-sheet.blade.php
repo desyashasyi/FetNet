@@ -8,6 +8,11 @@ use Livewire\Attributes\Reactive;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Quick tag manager modal (opened from the activity edit sheet), reactive on programId.
+ * Lists the program's activity tags as chips with inline create/delete; each change
+ * emits 'tags-changed' so the activity form's tag picker reloads.
+ */
 new class extends Component
 {
     use Toast;
@@ -17,6 +22,7 @@ new class extends Component
     public bool   $modal       = false;
     public string $newTagName  = '';
 
+    /** Tags for the program (chips list). */
     #[Computed]
     public function tags(): array
     {
@@ -26,6 +32,7 @@ new class extends Component
             ->map(fn($t) => ['id' => $t->id, 'name' => $t->name])->toArray();
     }
 
+    /** Open the manager modal (blank new-tag field). */
     #[On('open-tag-manager')]
     public function open(): void
     {
@@ -33,6 +40,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Create a tag (firstOrCreate) for the program and notify the parent. */
     public function createTag(): void
     {
         $this->validate(['newTagName' => 'required|string|max:100']);
@@ -45,6 +53,7 @@ new class extends Component
         $this->dispatch('tags-changed');
     }
 
+    /** Delete a tag and notify the parent to reload its picker. */
     public function deleteTag(int $tagId): void
     {
         ActivityTag::find($tagId)?->delete();

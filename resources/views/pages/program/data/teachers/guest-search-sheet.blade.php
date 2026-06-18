@@ -7,6 +7,11 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Guest-teacher search sheet: find lecturers from programs OUTSIDE this program's cluster
+ * (and not already guests) by name/code/employee id, and attach them as guest teachers.
+ * Emits 'teacher-changed' so the listing refreshes.
+ */
 new class extends Component
 {
     use Toast;
@@ -15,11 +20,13 @@ new class extends Component
     public string $guestSearch = '';
     public array  $guestResults = [];
 
+    /** The signed-in user's program. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Program ids sharing this program's cluster (excluded from guest search). */
     private function clusterProgramIds(Program $program): array
     {
         $entry = Cluster::where('program_id', $program->id)->first();
@@ -28,6 +35,7 @@ new class extends Component
             ->pluck('program_id')->toArray();
     }
 
+    /** Open the search sheet (cleared). */
     #[On('open-guest-search')]
     public function open(): void
     {
@@ -35,6 +43,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Search teachers outside the cluster (and not already guests) by name/code/employee id. */
     public function searchGuest(): void
     {
         $program  = $this->program();
@@ -58,6 +67,7 @@ new class extends Component
             ])->toArray();
     }
 
+    /** Attach the chosen teacher as a guest, refresh results, and notify the listing. */
     public function addGuestTeacher(int $teacherId): void
     {
         $this->program()->guestTeachers()->syncWithoutDetaching([$teacherId]);
