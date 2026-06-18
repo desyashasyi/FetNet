@@ -7,6 +7,11 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Inline manager modal for the program's specializations (list + add/edit/delete in one
+ * sheet), reachable from the subjects page. Saving/deleting emits
+ * 'refresh-subject-options' so the subject form's specialization picker updates.
+ */
 new class extends Component
 {
     use Toast;
@@ -17,11 +22,13 @@ new class extends Component
     public string $specAbbrev = '';
     public string $specName   = '';
 
+    /** The signed-in user's program; scopes the specializations. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Specializations for the program for the in-modal list. */
     #[Computed]
     public function specializations(): array
     {
@@ -35,6 +42,7 @@ new class extends Component
             ])->toArray();
     }
 
+    /** Open the manager modal (blank add form). */
     #[On('open-specialization-modal')]
     public function open(): void
     {
@@ -42,6 +50,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Load one specialization into the inline edit form. */
     public function openEdit(int $id): void
     {
         $s = Specialization::findOrFail($id);
@@ -51,11 +60,13 @@ new class extends Component
         $this->specName  = $s->name;
     }
 
+    /** Discard the inline edit and return to add mode. */
     public function cancelEdit(): void
     {
         $this->reset(['specCode', 'specAbbrev', 'specName', 'editId']);
     }
 
+    /** Add or update a specialization (code/abbrev upper-cased), then refresh options. */
     public function save(): void
     {
         $this->validate([
@@ -81,6 +92,7 @@ new class extends Component
         $this->dispatch('refresh-subject-options');
     }
 
+    /** Delete a specialization (its subjects get unlinked), then refresh options. */
     public function delete(int $id): void
     {
         Specialization::find($id)?->delete();

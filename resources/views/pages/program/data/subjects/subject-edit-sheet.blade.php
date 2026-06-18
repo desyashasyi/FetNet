@@ -11,6 +11,11 @@ use Livewire\Attributes\Reactive;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Create/edit sheet for a Subject, reactive on the parent's programId and a default
+ * curriculum year. Offers curriculum-year / specialization / type pickers (computed,
+ * program-scoped). Validates a unique code, then emits 'subject-changed' on save.
+ */
 new class extends Component
 {
     use Toast;
@@ -35,30 +40,35 @@ new class extends Component
         ['id' => 7, 'name' => '7'], ['id' => 8, 'name' => '8'],
     ];
 
+    /** Specialization picker options ("CODE | Name") for the program. */
     #[Computed] public function specializationOptions(): array {
         if (!$this->programId) return [];
         return Specialization::where('program_id', $this->programId)->orderBy('code')->get()
             ->map(fn($s) => ['id' => $s->id, 'name' => "{$s->code} | {$s->name}"])->toArray();
     }
 
+    /** Subject-type picker options ("CODE | Name") for the program. */
     #[Computed] public function typeOptions(): array {
         if (!$this->programId) return [];
         return SubjectType::where('program_id', $this->programId)->orderBy('code')->get()
             ->map(fn($t) => ['id' => $t->id, 'name' => "{$t->code} | {$t->name}"])->toArray();
     }
 
+    /** Curriculum-year picker options (newest first) for the program. */
     #[Computed] public function curriculumYearOptions(): array {
         if (!$this->programId) return [];
         return CurriculumYear::where('program_id', $this->programId)->orderByDesc('year')->get()
             ->map(fn($y) => ['id' => $y->id, 'name' => $y->year])->toArray();
     }
 
+    /** Bust the cached option lists when a lookup (year/spec/type) changes. */
     #[On('refresh-subject-options')]
     public function reloadOpts(): void
     {
         unset($this->specializationOptions, $this->typeOptions, $this->curriculumYearOptions);
     }
 
+    /** Open the sheet for a new subject (defaults credit 2 + the active year). */
     #[On('open-subject-create')]
     public function openCreate(): void
     {
@@ -68,6 +78,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet prefilled from an existing subject. */
     #[On('open-subject-edit')]
     public function openEdit(int $id): void
     {
@@ -83,6 +94,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Validation rules; code uniqueness ignores the current row when editing. */
     protected function rules(): array
     {
         $unique = 'required|unique:fetnet_subject,code';
@@ -94,6 +106,7 @@ new class extends Component
         ];
     }
 
+    /** Validate and create/update the subject for the program, then emit 'subject-changed'. */
     public function save(): void
     {
         $this->validate();

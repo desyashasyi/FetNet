@@ -7,6 +7,12 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Inline manager modal for the program's curriculum years (list + add/edit/delete in
+ * one sheet). Saving/deleting emits 'refresh-subject-options' so the subject form's
+ * year picker updates; deleting also emits 'curriculum-year-deleted' so the listing can
+ * clear a stale year filter.
+ */
 new class extends Component
 {
     use Toast;
@@ -16,11 +22,13 @@ new class extends Component
     public string $yearValue  = '';
     public string $yearDesc   = '';
 
+    /** The signed-in user's program; scopes the years. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Curriculum years for the program (newest first) for the in-modal list. */
     #[Computed]
     public function years(): array
     {
@@ -32,6 +40,7 @@ new class extends Component
             ->toArray();
     }
 
+    /** Open the manager modal (blank add form). */
     #[On('open-curriculum-year-modal')]
     public function open(): void
     {
@@ -39,6 +48,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Load one year into the inline edit form. */
     public function openEdit(int $id): void
     {
         $y = CurriculumYear::findOrFail($id);
@@ -47,11 +57,13 @@ new class extends Component
         $this->yearDesc  = $y->description ?? '';
     }
 
+    /** Discard the inline edit and return to add mode. */
     public function cancelEdit(): void
     {
         $this->reset(['yearValue', 'yearDesc', 'editId']);
     }
 
+    /** Add or update a curriculum year (firstOrCreate on add), then refresh options. */
     public function save(): void
     {
         $this->validate(['yearValue' => 'required|string|max:20']);
@@ -73,6 +85,7 @@ new class extends Component
         $this->dispatch('refresh-subject-options');
     }
 
+    /** Delete a curriculum year; subjects keep but get unlinked, then refresh + notify. */
     public function delete(int $id): void
     {
         CurriculumYear::find($id)?->delete();

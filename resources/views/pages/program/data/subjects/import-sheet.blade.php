@@ -8,6 +8,11 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Mary\Traits\Toast;
 
+/**
+ * Subject import sheet: upload an .xlsx/.xls, queue a SubjectsImportJob, and react to
+ * the broadcast SubjectsImportEvent (toast + refresh the listing/options). Also serves a
+ * downloadable template. See [[fetnet-job-events]].
+ */
 new class extends Component
 {
     use WithFileUploads, Toast;
@@ -16,16 +21,19 @@ new class extends Component
     public bool  $importing  = false;
     public mixed $importFile = null;
 
+    /** The signed-in user's program (import target). */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Listen for the import-finished broadcast. */
     public function getListeners(): array
     {
         return ['echo:subjects-import,.SubjectsImportEvent' => 'onImportDone'];
     }
 
+    /** On import finish: toast the result and refresh the subjects list + options. */
     public function onImportDone(array $event): void
     {
         $this->importing = false;
@@ -36,6 +44,7 @@ new class extends Component
         $this->dispatch('refresh-subject-options');
     }
 
+    /** Open the import sheet (clears any previous file). */
     #[On('open-subject-import')]
     public function open(): void
     {
@@ -43,11 +52,13 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Download the blank subjects import template. */
     public function downloadTemplate(): mixed
     {
         return \Maatwebsite\Excel\Facades\Excel::download(new SubjectsTemplateExport(), 'subjects_template.xlsx');
     }
 
+    /** Validate + store the upload and dispatch the queued import job. */
     public function import(): void
     {
         $this->validate(['importFile' => 'required|file|mimes:xlsx,xls|max:5120']);

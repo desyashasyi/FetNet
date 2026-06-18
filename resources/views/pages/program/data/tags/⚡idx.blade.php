@@ -6,6 +6,10 @@ use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Mary\Traits\Toast;
 
+/**
+ * Activity Tags listing for the signed-in program: a self-contained CRUD (add/edit
+ * modal + delete confirm) for the per-program tags used in time/space constraints.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast;
@@ -16,17 +20,20 @@ new #[Layout('layouts.program')] class extends Component
     public ?int    $deleteId = null;
     public string  $name     = '';
 
+    /** The signed-in user's program; scopes tags on this page. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Open the add modal (blank). */
     public function openCreate(): void
     {
         $this->reset(['name', 'editId']);
         $this->modal = true;
     }
 
+    /** Open the edit modal prefilled from an existing tag. */
     public function openEdit(int $id): void
     {
         $tag = ActivityTag::findOrFail($id);
@@ -35,6 +42,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->modal  = true;
     }
 
+    /** Validate and create/update the tag for this program. */
     public function save(): void
     {
         $this->validate(['name' => 'required|string|max:100']);
@@ -52,12 +60,14 @@ new #[Layout('layouts.program')] class extends Component
         $this->modal = false;
     }
 
+    /** Open the delete confirmation for one tag. */
     public function confirmDelete(int $id): void
     {
         $this->deleteId = $id;
         $this->delModal = true;
     }
 
+    /** Delete the confirmed tag (constraints using it lose the reference). */
     public function delete(): void
     {
         ActivityTag::find($this->deleteId)?->delete();
@@ -66,6 +76,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Tag deleted.', position: 'toast-top toast-center');
     }
 
+    /** All tags for this program plus the table headers. */
     public function with(): array
     {
         $program = $this->program();

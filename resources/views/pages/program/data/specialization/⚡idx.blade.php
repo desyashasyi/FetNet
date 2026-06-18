@@ -8,6 +8,11 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Specializations listing for the signed-in program: searchable, paginated table with
+ * add/edit (via the form sheet) and delete. Deleting a specialization unlinks it from
+ * its subjects (nulls their specialization_id). Hosts specialization-form-sheet.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast;
@@ -23,18 +28,23 @@ new #[Layout('layouts.program')] class extends Component
         ['key' => 'action', 'label' => '',          'class' => 'w-2/12 text-right'],
     ];
 
+    /** The signed-in user's program; scopes every query on this page. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Reset pagination when the search term changes. */
     public function updatedSearch(): void { $this->resetPage(); }
 
+    /** Open the form sheet for create / edit. */
     public function openCreate(): void { $this->dispatch('open-specialization-create'); }
     public function openEdit(int $id): void { $this->dispatch('open-specialization-edit', id: $id); }
 
+    /** Open the delete confirmation for one specialization. */
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->delModal = true; }
 
+    /** Delete the confirmed specialization (unlinks its subjects). */
     public function delete(): void
     {
         Specialization::findOrFail($this->deleteId)->delete();
@@ -42,9 +52,11 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Specialization deleted.', position: 'toast-top toast-center');
     }
 
+    /** Re-render after the form sheet saves. */
     #[On('specialization-changed')]
     public function refreshFromChild(): void {}
 
+    /** Paginated specializations for this program, filtered by search. */
     public function with(): array
     {
         $program = $this->program();

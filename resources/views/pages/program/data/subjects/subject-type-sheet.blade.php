@@ -7,6 +7,11 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Inline manager modal for the program's subject types (list + add/edit/delete in one
+ * sheet), reachable from the subjects page. Saving/deleting emits
+ * 'refresh-subject-options' so the subject form's type picker updates.
+ */
 new class extends Component
 {
     use Toast;
@@ -16,11 +21,13 @@ new class extends Component
     public string $typeCode = '';
     public string $typeName = '';
 
+    /** The signed-in user's program; scopes the subject types. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Subject types for the program for the in-modal list. */
     #[Computed]
     public function types(): array
     {
@@ -32,6 +39,7 @@ new class extends Component
             ->toArray();
     }
 
+    /** Open the manager modal (blank add form). */
     #[On('open-subject-type-modal')]
     public function open(): void
     {
@@ -39,6 +47,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Load one subject type into the inline edit form. */
     public function openEdit(int $id): void
     {
         $t = SubjectType::findOrFail($id);
@@ -47,11 +56,13 @@ new class extends Component
         $this->typeName = $t->name;
     }
 
+    /** Discard the inline edit and return to add mode. */
     public function cancelEdit(): void
     {
         $this->reset(['typeCode', 'typeName', 'editId']);
     }
 
+    /** Add or update a subject type (unique code), then refresh options. */
     public function save(): void
     {
         $unique = 'required|unique:fetnet_subject_type,code';
@@ -70,6 +81,7 @@ new class extends Component
         $this->dispatch('refresh-subject-options');
     }
 
+    /** Delete a subject type (its subjects get unlinked), then refresh options. */
     public function delete(int $id): void
     {
         SubjectType::find($id)?->delete();

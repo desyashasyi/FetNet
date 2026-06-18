@@ -6,6 +6,10 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Create/edit sheet for a Specialization scoped to the signed-in program. Validates a
+ * unique code, then emits 'specialization-changed' so the list refreshes.
+ */
 new class extends Component
 {
     use Toast;
@@ -16,11 +20,13 @@ new class extends Component
     public string $abbrev = '';
     public string $name   = '';
 
+    /** The signed-in user's program (used as owner on create). */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Open the sheet for a new specialization (blank form). */
     #[On('open-specialization-create')]
     public function openCreate(): void
     {
@@ -28,6 +34,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet prefilled from an existing specialization. */
     #[On('open-specialization-edit')]
     public function openEdit(int $id): void
     {
@@ -39,6 +46,7 @@ new class extends Component
         $this->modal  = true;
     }
 
+    /** Validation rules; code uniqueness ignores the current row when editing. */
     protected function rules(): array
     {
         $unique = 'required|unique:fetnet_specialization,code';
@@ -50,6 +58,7 @@ new class extends Component
         ];
     }
 
+    /** Validate and create/update the specialization, then emit 'specialization-changed'. */
     public function save(): void
     {
         $this->validate();
