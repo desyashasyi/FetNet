@@ -9,6 +9,14 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Subjects listing page (/program/data/subjects) for the signed-in program. Provides
+ * search, curriculum-year filter, a selectable table with bulk delete, single delete,
+ * and delete-all. Deleting a subject cascades to its activity plannings + activities
+ * (model deleting hooks), so each delete iterates per model rather than a bulk query.
+ * Hosts the create/edit/import sheets and the curriculum-year/specialization/type
+ * modals, and reacts to their change events to refresh filter options.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast;
@@ -34,13 +42,16 @@ new #[Layout('layouts.program')] class extends Component
         ['key' => 'action',            'label' => '',           'class' => 'w-1/12 text-right'],
     ];
 
+    /** The signed-in user's program; scopes every query on this page. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Seed the curriculum-year filter options on first render. */
     public function mount(): void { $this->loadYearOptions(); }
 
+    /** Load curriculum-year filter options for this program, newest year first. */
     private function loadYearOptions(): void
     {
         $program = $this->program();
@@ -50,12 +61,15 @@ new #[Layout('layouts.program')] class extends Component
             ->map(fn($y) => ['id' => $y->id, 'name' => $y->year])->toArray();
     }
 
+    /** Search/filter changes reset pagination to page 1. */
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedFilterYear(): void { $this->resetPage(); }
 
 
+    /** Open the single-delete confirmation for one subject. */
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->delModal = true; }
 
+    /** Delete the confirmed subject; its plannings + activities cascade away. */
     public function delete(): void
     {
         Subject::findOrFail($this->deleteId)->delete();
@@ -64,11 +78,17 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Subject deleted. Related activities also deleted.', position: 'toast-top toast-center');
     }
 
+    /** Open the bulk-delete confirmation, but only if any rows are selected. */
     public function confirmDeleteSelected(): void
     {
         if (! empty($this->selected)) $this->delSelModal = true;
     }
 
+    /**
+     * Delete the checkbox-selected subjects (scoped to this program). Iterates per
+     * model in chunks so each subject's deleting hook cascades to its plannings +
+     * activities, then clears the selection and notifies child sheets to refresh.
+     */
     public function deleteSelected(): void
     {
         $program = $this->program();
@@ -90,8 +110,13 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning("{$count} subjects deleted. Related activities also deleted.", position: 'toast-top toast-center');
     }
 
+    /** Open the delete-all confirmation. */
     public function confirmDeleteAll(): void { $this->delAllModal = true; }
 
+    /**
+     * Delete every subject in this program. Iterates per model in chunks so each
+     * deleting hook cascades to plannings + activities, then notifies child sheets.
+     */
     public function deleteAll(): void
     {
         $program = $this->program();
@@ -111,6 +136,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning("{$count} subjects deleted. Related activities also deleted.", position: 'toast-top toast-center');
     }
 
+    /** Re-render and reload year options when a child sheet reports a change. */
     #[On('subject-changed')]
     #[On('refresh-subject-options')]
     public function refreshFromChild(): void
@@ -118,12 +144,18 @@ new #[Layout('layouts.program')] class extends Component
         $this->loadYearOptions();
     }
 
+    /** Clear the year filter if the curriculum year it points to was deleted. */
     #[On('curriculum-year-deleted')]
     public function unsetFilterYear(int $id): void
     {
         if ($this->filterYear === $id) $this->filterYear = null;
     }
 
+    /**
+     * View data: the program id, total subject count (for the Delete-All button), and
+     * the paginated, filtered subject rows decorated with display-ready curriculum /
+     * specialization / type labels. With no program, the query is forced empty.
+     */
     public function with(): array
     {
         $program = $this->program();

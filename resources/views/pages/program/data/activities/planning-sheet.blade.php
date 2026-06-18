@@ -10,6 +10,17 @@ use Livewire\Attributes\Reactive;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Bottom-slide "Subject Planning" modal on /program/data/activities. Lets the user
+ * mark which subjects are planned (have an ActivityPlanning row) for the active
+ * program + semester. Supports search, curriculum-year/semester filters, paged
+ * listing, per-subject toggle, and bulk "Plan All Odd/Even".
+ *
+ * Reactive on the parent's programId + semesterId. Toggling does NOT notify the
+ * parent immediately; changes are batched and a single 'planning-changed' event is
+ * dispatched on Done (see closePlanning + planDirty) so the parent re-render cannot
+ * morph this native <dialog> shut mid-session.
+ */
 new class extends Component
 {
     use Toast;
@@ -34,6 +45,7 @@ new class extends Component
         ['id' => 7, 'name' => '7'], ['id' => 8, 'name' => '8'],
     ];
 
+    /** Curriculum-year filter options for the active program, newest year first. */
     #[Computed]
     public function curriculumYearOptions(): array
     {
@@ -43,6 +55,7 @@ new class extends Component
             ->map(fn($y) => ['id' => $y->id, 'name' => $y->year])->toArray();
     }
 
+    /** Open the modal: clear search/filters/dirty flag, reset to page 1, load list. */
     #[On('open-planning')]
     public function open(): void
     {
@@ -52,6 +65,11 @@ new class extends Component
         $this->modal = true;
     }
 
+    /**
+     * Close the modal and, only if any planning changed this session, emit a single
+     * 'planning-changed' so the parent refreshes once (avoids per-toggle re-renders
+     * that would close the dialog).
+     */
     public function closePlanning(): void
     {
         $this->modal = false;
@@ -61,6 +79,11 @@ new class extends Component
         }
     }
 
+    /**
+     * Load the current page of subjects for the active program, honouring the search
+     * text + curriculum-year + semester filters, and flag each row 'planned' if an
+     * ActivityPlanning row already exists for it in this program + semester.
+     */
     public function loadPlanSubjects(): void
     {
         if (! $this->programId || ! $this->semesterId) { return; }
@@ -91,13 +114,21 @@ new class extends Component
             ])->values()->toArray();
     }
 
+    /** Search/filter changes reset to page 1 and reload the list. */
     public function updatedPlanSearch(): void          { $this->planPage = 1; $this->loadPlanSubjects(); }
     public function updatedPlanFilterYear(): void     { $this->planPage = 1; $this->loadPlanSubjects(); }
     public function updatedPlanFilterSemester(): void { $this->planPage = 1; $this->loadPlanSubjects(); }
 
+    /** Manual pager (no WithPagination here since the list is built in-memory). */
     public function planPrevPage(): void { if ($this->planPage > 1) { $this->planPage--; $this->loadPlanSubjects(); } }
     public function planNextPage(): void { if ($this->planPage < ceil($this->planTotal / $this->planPerPage)) { $this->planPage++; $this->loadPlanSubjects(); } }
 
+    /**
+     * Toggle one subject's planned state for this program + semester. Uses withTrashed
+     * so a previously-removed plan is restored rather than duplicated; a fresh subject
+     * gets a new ActivityPlanning. Marks the session dirty and reloads. Restoring a
+     * planning cascades-restore its activities (model deleting/restoring hooks).
+     */
     public function togglePlanning(int $subjectId): void
     {
         if (! $this->programId || ! $this->semesterId) return;
@@ -124,6 +155,11 @@ new class extends Component
         $this->loadPlanSubjects();
     }
 
+    /**
+     * Bulk-plan every subject of the given parity ('odd'|'even') for this program +
+     * semester, optionally narrowed to the selected curriculum year. firstOrCreate +
+     * restore makes it idempotent (won't duplicate or skip soft-deleted plans).
+     */
     private function planAll(string $parity): void
     {
         if (! $this->programId || ! $this->semesterId) return;
@@ -145,6 +181,7 @@ new class extends Component
         $this->loadPlanSubjects();
     }
 
+    /** Plan all odd-semester / all even-semester subjects (bulk shortcuts). */
     public function planAllOdd(): void  { $this->planAll('odd'); }
     public function planAllEven(): void { $this->planAll('even'); }
 }; ?>
