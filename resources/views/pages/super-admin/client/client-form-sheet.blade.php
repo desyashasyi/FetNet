@@ -12,6 +12,13 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Create/edit sheet for a Client and its owning user account. On create it provisions
+ * the user (with the 'client' role), the Client, a default ClientConfig, and — for the
+ * cluster level (code 'CLU') — a ClusterBase. Edit updates those and adds/removes the
+ * ClusterBase as the level toggles. Includes inline quick-create for Faculty and
+ * University. Emits 'client-changed' on save.
+ */
 new class extends Component
 {
     use Toast;
@@ -48,8 +55,10 @@ new class extends Component
     public string $newUniversityName    = '';
     public string $newUniversityNameEng = '';
 
+    /** Load level/university/faculty picker options on first render. */
     public function mount(): void { $this->loadOptions(); }
 
+    /** Load level + university options, then the (university-scoped) faculty options. */
     private function loadOptions(): void
     {
         $this->levelsOptions = ClientLevel::all(['id', 'code', 'level'])
@@ -61,6 +70,7 @@ new class extends Component
         $this->loadFaculties();
     }
 
+    /** Load faculty options, scoped to the selected university when one is chosen. */
     private function loadFaculties(): void
     {
         $this->facultiesOptions = Faculty::when(
@@ -69,18 +79,21 @@ new class extends Component
             ->map(fn($f) => ['id' => $f->id, 'name' => "{$f->code} | {$f->name}"])->toArray();
     }
 
+    /** Changing university clears the faculty and reloads its faculty options. */
     public function updatedUniversityId(): void
     {
         $this->faculty_id = null;
         $this->loadFaculties();
     }
 
+    /** True when the selected level is the cluster level (code 'CLU'). */
     public function isClusterLevel(): bool
     {
         if (! $this->level_id) return false;
         return ClientLevel::find($this->level_id)?->code === 'CLU';
     }
 
+    /** Open the sheet for a new client (blank form). */
     #[On('open-client-create')]
     public function openCreate(): void
     {
@@ -90,6 +103,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet prefilled from an existing client (and its cluster, if any). */
     #[On('open-client-edit')]
     public function openEdit(int $id): void
     {
@@ -109,6 +123,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Validation rules: stricter on create (user account), plus cluster fields when applicable. */
     protected function rules(): array
     {
         if ($this->mode === 'create') {
@@ -137,6 +152,11 @@ new class extends Component
         return $r;
     }
 
+    /**
+     * Validate and persist. Create: provision user (+ 'client' role), Client, default
+     * ClientConfig, and ClusterBase if cluster level. Edit: update client + user email,
+     * and upsert/remove the ClusterBase as the level toggles. Emits 'client-changed'.
+     */
     public function save(): void
     {
         $this->validate();
@@ -197,6 +217,7 @@ new class extends Component
         $this->dispatch('client-changed');
     }
 
+    /** Open the inline "Add Faculty" quick-create modal, seeded with the current university. */
     public function openFacultyCreate(): void
     {
         $this->facultyUniversityId = $this->university_id;
@@ -206,6 +227,7 @@ new class extends Component
         $this->facultyModal        = true;
     }
 
+    /** Quick-create a faculty, then select it (and its university) in the main form. */
     public function saveFaculty(): void
     {
         $this->validate([
@@ -230,6 +252,7 @@ new class extends Component
         $this->success("Faculty '{$faculty->name}' added.", position: 'toast-top toast-center');
     }
 
+    /** Open the inline "Add University" quick-create modal. */
     public function openUniversityCreate(): void
     {
         $this->newUniversityCode    = '';
@@ -238,6 +261,7 @@ new class extends Component
         $this->universityModal      = true;
     }
 
+    /** Quick-create a university, reload options, and target it for faculty creation. */
     public function saveUniversity(): void
     {
         $this->validate([

@@ -7,6 +7,10 @@ use Livewire\Component;
 use Mary\Traits\Toast;
 use Spatie\Permission\Models\Role;
 
+/**
+ * Create/edit sheet for a system User. Manages name, email, SSO/NIP, optional password,
+ * a single role (via Spatie), and client assignment. Emits 'user-changed' on save.
+ */
 new class extends Component
 {
     use Toast;
@@ -24,6 +28,7 @@ new class extends Component
     public array $rolesOptions   = [];
     public array $clientsOptions = [];
 
+    /** Load role + client picker options once. */
     public function mount(): void
     {
         $this->rolesOptions = Role::all(['id', 'name'])
@@ -34,6 +39,7 @@ new class extends Component
             ->toArray();
     }
 
+    /** Open the sheet for a new user (blank form). */
     #[On('open-user-create')]
     public function openCreate(): void
     {
@@ -44,6 +50,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet prefilled from an existing user (password left blank). */
     #[On('open-user-edit')]
     public function openEdit(int $id): void
     {
@@ -59,6 +66,10 @@ new class extends Component
         $this->modal = true;
     }
 
+    /**
+     * Validate and create or update the user (hashing a new password only when given),
+     * sync the chosen role (or clear roles), then emit 'user-changed'.
+     */
     public function saveUser(): void
     {
         $uniqueEmail = $this->userId ? "unique:users,email,{$this->userId}" : 'unique:users,email';

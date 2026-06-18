@@ -5,6 +5,10 @@ use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Auth;
 use Mary\Traits\Toast;
 
+/**
+ * Login page. Offers CAS/SSO sign-in (UPI) and a local email+password fallback. On a
+ * successful local login, redirects to the role's home (super-admin / client / operator).
+ */
 new #[Layout('layouts.guest')] class extends Component
 {
     use Toast;
@@ -17,6 +21,7 @@ new #[Layout('layouts.guest')] class extends Component
         'password' => 'required|min:6',
     ];
 
+    /** Validate + attempt local login; redirect by role, or toast on bad credentials. */
     public function login(): mixed
     {
         $this->validate();
@@ -43,6 +48,7 @@ new #[Layout('layouts.guest')] class extends Component
         return null;
     }
 
+    /** Redirect to the CAS SSO entry route. */
     public function redirectToSso(): mixed
     {
         return redirect()->route('auth.cas.redirect');

@@ -6,8 +6,13 @@ use App\Models\FetNet\Semester;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
+/**
+ * Client (admin) dashboard: read-only summary of the signed-in client with program and
+ * semester totals, or a warning when the account isn't a client.
+ */
 new #[Layout('layouts.client')] class extends Component
 {
+    /** The signed-in client plus its program + semester counts. */
     public function with(): array
     {
         $client = Client::with(['university', 'faculty', 'level', 'config'])

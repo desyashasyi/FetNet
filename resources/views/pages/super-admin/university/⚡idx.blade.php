@@ -7,6 +7,10 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Super-admin Universities listing: searchable, paginated table with add/edit (via the
+ * form sheet) and delete. Hosts university-form-sheet.
+ */
 new #[Layout('layouts.super-admin')] class extends Component
 {
     use WithPagination, Toast;
@@ -22,13 +26,17 @@ new #[Layout('layouts.super-admin')] class extends Component
         ['key' => 'action',   'label' => '',               'class' => 'w-1/12 text-right'],
     ];
 
+    /** Reset pagination when the search term changes. */
     public function updatedSearch(): void { $this->resetPage(); }
 
+    /** Open the form sheet for create / edit. */
     public function openCreate(): void { $this->dispatch('open-university-create'); }
     public function openEdit(int $id): void { $this->dispatch('open-university-edit', id: $id); }
 
+    /** Open the delete confirmation for one university. */
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->deleteModal = true; }
 
+    /** Delete the confirmed university. */
     public function delete(): void
     {
         University::destroy($this->deleteId);
@@ -36,9 +44,11 @@ new #[Layout('layouts.super-admin')] class extends Component
         $this->warning('University deleted.', position: 'toast-top toast-center');
     }
 
+    /** Re-render after the form sheet saves. */
     #[On('university-changed')]
     public function refreshFromChild(): void {}
 
+    /** Paginated universities filtered by search. */
     public function with(): array
     {
         return [

@@ -7,6 +7,10 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Super-admin Users listing: searchable, paginated table of users with their roles and
+ * client, plus create/edit via the form sheet. Hosts user-form-sheet.
+ */
 new #[Layout('layouts.super-admin')] class extends Component
 {
     use WithPagination, Toast;
@@ -22,14 +26,18 @@ new #[Layout('layouts.super-admin')] class extends Component
         ['key' => 'action',      'label' => '',       'class' => 'w-1/12 text-right'],
     ];
 
+    /** Reset pagination when the search term changes. */
     public function updatedSearch(): void { $this->resetPage(); }
 
+    /** Open the form sheet for create / edit. */
     public function openCreate(): void { $this->dispatch('open-user-create'); }
     public function openEdit(int $id): void { $this->dispatch('open-user-edit', id: $id); }
 
+    /** Re-render after the form sheet saves. */
     #[On('user-changed')]
     public function refreshFromChild(): void {}
 
+    /** Paginated users (search by name/email/sso) decorated with role + client labels. */
     public function with(): array
     {
         return [

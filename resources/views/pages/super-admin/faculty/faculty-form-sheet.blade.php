@@ -7,6 +7,10 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Create/edit sheet for a Faculty (opened from the faculties listing). Validates a
+ * unique code per university, then emits 'faculty-changed' so the list refreshes.
+ */
 new class extends Component
 {
     use Toast;
@@ -18,6 +22,7 @@ new class extends Component
     public string $name_eng      = '';
     public ?int   $university_id = null;
 
+    /** University picker options ("CODE | Name"). */
     #[Computed]
     public function universitiesOptions(): array
     {
@@ -25,6 +30,7 @@ new class extends Component
             ->map(fn($u) => ['id' => $u->id, 'name' => "{$u->code} | {$u->name}"])->toArray();
     }
 
+    /** Validation rules; the code uniqueness ignores the current row when editing. */
     protected function rules(): array
     {
         $uniqueCode = 'required|unique:institution_faculty,code';
@@ -37,6 +43,7 @@ new class extends Component
         ];
     }
 
+    /** Open the sheet for a new faculty (blank form). */
     #[On('open-faculty-create')]
     public function openCreate(): void
     {
@@ -44,6 +51,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet prefilled from an existing faculty. */
     #[On('open-faculty-edit')]
     public function openEdit(int $id): void
     {
@@ -56,6 +64,7 @@ new class extends Component
         $this->modal         = true;
     }
 
+    /** Validate and create/update the faculty, then emit 'faculty-changed'. */
     public function save(): void
     {
         $this->validate();

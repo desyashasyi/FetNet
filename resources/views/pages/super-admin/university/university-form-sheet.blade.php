@@ -5,6 +5,10 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Create/edit sheet for a University. Validates unique code + name, then emits
+ * 'university-changed' so the list refreshes.
+ */
 new class extends Component
 {
     use Toast;
@@ -15,6 +19,7 @@ new class extends Component
     public string $name     = '';
     public string $name_eng = '';
 
+    /** Validation rules; uniqueness ignores the current row when editing. */
     protected function rules(): array
     {
         $uniqueCode = 'required|unique:institution_university,code';
@@ -30,6 +35,7 @@ new class extends Component
         ];
     }
 
+    /** Open the sheet for a new university (blank form). */
     #[On('open-university-create')]
     public function openCreate(): void
     {
@@ -37,6 +43,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet prefilled from an existing university. */
     #[On('open-university-edit')]
     public function openEdit(int $id): void
     {
@@ -48,6 +55,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Validate and create/update the university, then emit 'university-changed'. */
     public function save(): void
     {
         $this->validate();

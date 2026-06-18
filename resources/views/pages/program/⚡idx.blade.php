@@ -4,8 +4,13 @@ use App\Models\FetNet\Program;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
+/**
+ * Program dashboard: read-only summary of the signed-in user's study program (its
+ * university, faculty, code, abbrev), or a warning when the account isn't a program.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
+    /** The signed-in user's program with its client's university + faculty. */
     public function with(): array
     {
         return [

@@ -4,8 +4,13 @@ use App\Models\FetNet\Program;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
+/**
+ * Operator dashboard: shows the operator's assigned program (with university/faculty)
+ * and a link to its timetable, or a warning when no program is assigned.
+ */
 new #[Layout('layouts.operator')] class extends Component
 {
+    /** The operator's assigned program with its client's university + faculty. */
     public function with(): array
     {
         return [

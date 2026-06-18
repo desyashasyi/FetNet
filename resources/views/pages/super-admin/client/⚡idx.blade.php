@@ -7,6 +7,10 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Super-admin Clients listing: searchable, paginated table of clients (user, university,
+ * faculty, level), create/edit via the form sheet, and "login as client" impersonation.
+ */
 new #[Layout('layouts.super-admin')] class extends Component
 {
     use WithPagination, Toast;
@@ -24,17 +28,24 @@ new #[Layout('layouts.super-admin')] class extends Component
         ['key' => 'action',     'label' => '',         'class' => 'w-2/12 text-right'],
     ];
 
+    /** Reset pagination when the search term changes. */
     public function updatedSearch(): void { $this->resetPage(); }
 
+    /** Open the form sheet for create / edit. */
     public function openCreate(): void { $this->dispatch('open-client-create'); }
     public function openEdit(int $id): void { $this->dispatch('open-client-edit', id: $id); }
 
+    /** Open the "login as client" confirmation. */
     public function confirmLoginAs(int $id): void
     {
         $this->loginId    = $id;
         $this->loginModal = true;
     }
 
+    /**
+     * Impersonate the client: stash the current (super-admin) id as impersonator_id,
+     * log in as the client's user, and redirect to the client dashboard.
+     */
     public function loginAs(): mixed
     {
         $client = Client::with('user')->findOrFail($this->loginId);
@@ -44,9 +55,11 @@ new #[Layout('layouts.super-admin')] class extends Component
         return redirect()->route('client.idx');
     }
 
+    /** Re-render after the form sheet saves. */
     #[On('client-changed')]
     public function refreshFromChild(): void {}
 
+    /** Paginated clients (search by user name) decorated with display labels. */
     public function with(): array
     {
         return [

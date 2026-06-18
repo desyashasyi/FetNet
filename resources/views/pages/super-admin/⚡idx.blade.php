@@ -7,8 +7,13 @@ use App\Models\User;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
+/**
+ * Super-admin dashboard: system-wide overview with total counts of clients,
+ * universities, faculties, and users.
+ */
 new #[Layout('layouts.super-admin')] class extends Component
 {
+    /** Aggregate counts for the overview stat cards. */
     public function with(): array
     {
         return [
