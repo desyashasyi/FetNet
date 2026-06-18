@@ -10,6 +10,12 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
+/**
+ * Read-only published timetable for the program, student-centric. Shows the latest
+ * PUBLISHED FetCompile's placed slots for this program in the chosen semester, as a
+ * day×hour grid or a flat table, filterable by student group. Uses HasProgramSemester
+ * for the year/semester pickers and ClientConfig for day/hour labels.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use HasProgramSemester;
@@ -21,23 +27,28 @@ new #[Layout('layouts.program')] class extends Component
     public ?int $studentFilterId = null;
     public ?int $roomFilterId    = null;
 
+    /** The signed-in user's program. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $p = $this->program();
         if ($p) $this->mountSemesterContext($p->client_id);
     }
 
+    /** The program's owning client id. */
     #[Computed]
     public function clientId(): ?int  { return $this->program()?->client_id; }
 
+    /** This program's id. */
     #[Computed]
     public function programId(): ?int { return $this->program()?->id; }
 
+    /** True if a timetable has been published for this client + semester. */
     #[Computed]
     public function isPublished(): bool
     {
@@ -48,18 +59,21 @@ new #[Layout('layouts.program')] class extends Component
             ->exists();
     }
 
+    /** The client's scheduling config (day/hour layout). */
     #[Computed]
     public function config(): ?ClientConfig
     {
         return $this->clientId ? ClientConfig::where('client_id', $this->clientId)->first() : null;
     }
 
+    /** Column day labels from config, defaulting to Mon–Fri. */
     #[Computed]
     public function dayLabels(): array
     {
         return $this->config?->dayLabels() ?: ['Mon','Tue','Wed','Thu','Fri'];
     }
 
+    /** Row hour labels (bookable, non-break slots) from config, defaulting to 8 hours. */
     #[Computed]
     public function hourLabels(): array
     {
@@ -75,6 +89,7 @@ new #[Layout('layouts.program')] class extends Component
         return array_map(fn($s) => $s['time'] ?? '?', $bookable);
     }
 
+    /** All placed timetable slots for this program in the published semester (eager-loaded). */
     #[Computed]
     public function placedSlots()
     {
@@ -94,6 +109,7 @@ new #[Layout('layouts.program')] class extends Component
             ->get();
     }
 
+    /** Placed slots bucketed as [day_index][hour_index][] and filtered by the active view. */
     #[Computed]
     public function gridIndex(): array
     {
@@ -116,6 +132,7 @@ new #[Layout('layouts.program')] class extends Component
         return $out;
     }
 
+    /** Flattened, day/hour-sorted rows (with display labels) for the table mode. */
     #[Computed]
     public function flatSlots(): array
     {
@@ -141,6 +158,7 @@ new #[Layout('layouts.program')] class extends Component
         return $bag->sortBy(['day_idx', 'hour_idx'])->values()->toArray();
     }
 
+    /** Distinct teachers present in the placed slots (filter options). */
     #[Computed]
     public function teacherOptions(): array
     {
@@ -151,6 +169,7 @@ new #[Layout('layouts.program')] class extends Component
             ->values()->toArray();
     }
 
+    /** Distinct student groups present in the placed slots (filter options). */
     #[Computed]
     public function studentOptions(): array
     {
@@ -161,6 +180,7 @@ new #[Layout('layouts.program')] class extends Component
             ->values()->toArray();
     }
 
+    /** Distinct rooms present in the placed slots (filter options). */
     #[Computed]
     public function roomOptions(): array
     {
