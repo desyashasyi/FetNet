@@ -9,6 +9,22 @@ use App\Models\FetNet\Teacher;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Builds the lecturer SKS (credit) workload recap shown on the client and program
+ * "workload" pages. Produces a cross-program matrix: for each lecturer, the credits
+ * they teach in each program, plus a per-lecturer total, scoped to the active period.
+ *
+ * The "active period" is every semester system-wide that shares the active semester's
+ * parity (odd/even) and academic year_start, so a guest lecturer's load from another
+ * program in the same period is counted too. Credit is counted once per activity
+ * (team teaching gives full credit to each attached teacher).
+ *
+ * Entry points: forClient() (lecturers whose home program belongs to the client),
+ * forProgram() (everyone actually teaching in one program, guests included), and
+ * forTeacherIds() (the shared core). All return:
+ *   ['programs' => [{id, abbrev, name}...], 'rows' => [{teacher_id, name, code,
+ *     perProgram: [program_id => credit], total}...]].
+ */
 class LecturerWorkloadReport
 {
     /** Recap for a client's lecturers (home program under the client). */

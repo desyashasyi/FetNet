@@ -9,6 +9,14 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Teachers listing page (/program/data/teachers) for the signed-in program. Lists the
+ * program's own lecturers (and, when the program is in a cluster, the whole cluster's
+ * lecturers with a program-study selector to narrow to one) plus this program's guest
+ * teachers, all in one paginated table. Guest rows are flagged is_guest: shown with a
+ * "guest" badge, a "from <home prodi>" note, and a Remove-guest action instead of
+ * Edit/Delete. Hosts the create/edit, guest-search, and import sheets.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast;
@@ -20,11 +28,13 @@ new #[Layout('layouts.program')] class extends Component
     public bool   $guestRemoveModal = false;
     public ?int   $guestRemoveId    = null;
 
+    /** The signed-in user's program; scopes every query on this page. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Program ids sharing this program's cluster (just its own id if unclustered). */
     private function clusterProgramIds(Program $program): array
     {
         $entry = Cluster::where('program_id', $program->id)->first();
@@ -33,16 +43,20 @@ new #[Layout('layouts.program')] class extends Component
             ->pluck('program_id')->toArray();
     }
 
+    /** Search / program filter changes reset pagination to page 1. */
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedFilterProgramId(): void { $this->resetPage(); }
 
+    /** Open the relevant child sheet (create/edit/guest-search/import). */
     public function openCreate(): void { $this->dispatch('open-teacher-create'); }
     public function openEdit(int $id): void { $this->dispatch('open-teacher-edit', id: $id); }
     public function openGuestSearch(): void { $this->dispatch('open-guest-search'); }
     public function openImport(): void { $this->dispatch('open-teacher-import'); }
 
+    /** Open the delete confirmation for one (own) teacher. */
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->delModal = true; }
 
+    /** Delete the confirmed teacher (also removes them from all activities). */
     public function delete(): void
     {
         Teacher::findOrFail($this->deleteId)->delete();
@@ -50,8 +64,13 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Teacher deleted.', position: 'toast-top toast-center');
     }
 
+    /** Open the confirmation to remove a guest teacher from this program. */
     public function confirmRemoveGuest(int $id): void { $this->guestRemoveId = $id; $this->guestRemoveModal = true; }
 
+    /**
+     * Detach a guest teacher from this program (their own Teacher record is untouched).
+     * Uses the explicit id when given, else the one stored by confirmRemoveGuest.
+     */
     public function removeGuestTeacher(?int $teacherId = null): void
     {
         $teacherId ??= $this->guestRemoveId;
@@ -63,9 +82,17 @@ new #[Layout('layouts.program')] class extends Component
         $this->guestRemoveId    = null;
     }
 
+    /** Re-render when a child sheet (create/edit/guest/import) reports a change. */
     #[On('teacher-changed')]
     public function refreshFromChild(): void {}
 
+    /**
+     * View data: builds the headers (with a Program column only when clustered), the
+     * program-study selector options, and one paginated query merging own/cluster
+     * teachers with this program's guest teachers. Each row is decorated with
+     * is_guest, full_name, study_program, program_name, and guest_abbrevs for the
+     * cell scopes. Guests are hidden when filtering to another cluster program.
+     */
     public function with(): array
     {
         $program   = $this->program();

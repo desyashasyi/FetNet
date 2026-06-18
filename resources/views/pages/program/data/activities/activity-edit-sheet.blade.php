@@ -15,6 +15,17 @@ use Livewire\Attributes\Reactive;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Bottom-slide create/edit sheet for an Activity on /program/data/activities.
+ * Reactive on the parent's programId + semesterId. Picks a subject (which sets the
+ * base duration from its credit), an activity type, extra duration, tags, teachers,
+ * and student groups, then on save upserts the subject's ActivityPlanning for this
+ * program + semester and syncs the teacher/student/tag pivots.
+ *
+ * Selector sources: teachers span the whole cluster plus this program's guest
+ * teachers; student groups are the non-root nodes of the student hierarchy shown as a
+ * "batch / group / sub-group" path so sub-groups are pickable.
+ */
 new class extends Component {
     use Toast;
 
@@ -40,16 +51,19 @@ new class extends Component {
     public array $studentOptions = [];
     public array $tagOptions = [];
 
+    /** The active program (from the reactive programId prop), or null. */
     private function program(): ?Program
     {
         return $this->programId ? Program::find($this->programId) : null;
     }
 
+    /** Seed the static option lists on first render. */
     public function mount(): void
     {
         $this->loadOptions();
     }
 
+    /** Load the activity-type options (global) and tag options (this program). */
     public function loadOptions(): void
     {
         $program = $this->program();
@@ -69,12 +83,17 @@ new class extends Component {
             ->toArray();
     }
 
+    /** Reload options after the tag manager reports a change. */
     #[On("tags-changed")]
     public function reloadTags(): void
     {
         $this->loadOptions();
     }
 
+    /**
+     * Live search for the Subject picker (this program only, by name or code). Always
+     * keeps the currently-selected subject in the list so editing never loses it.
+     */
     public function searchSubjects(string $value = ""): void
     {
         $program = $this->program();
@@ -111,6 +130,11 @@ new class extends Component {
             ->toArray();
     }
 
+    /**
+     * Live search for the Teachers picker. Candidate pool = teachers whose home
+     * program is anywhere in this program's cluster, plus this program's guest
+     * teachers, filtered by name/code. Already-selected ids are always kept in range.
+     */
     public function searchTeachers(string $value = ""): void
     {
         $program = $this->program();
@@ -160,6 +184,12 @@ new class extends Component {
             ->toArray();
     }
 
+    /**
+     * Live search for the Student Groups picker. Returns only non-root nodes (groups
+     * and sub-groups) of this program's student hierarchy, each labelled with its full
+     * "batch / group / sub-group" path. Limit is high (500) so deep sub-groups aren't
+     * truncated out of the list.
+     */
     public function searchStudents(string $value = ""): void
     {
         $program = $this->program();
@@ -184,6 +214,7 @@ new class extends Component {
             ->toArray();
     }
 
+    /** Build a student's display path by walking parent links: "2026 / TE01-7 / A". */
     private function studentPath(Student $student): string
     {
         $names = [];
@@ -194,6 +225,7 @@ new class extends Component {
         return implode(" / ", array_reverse($names));
     }
 
+    /** When the subject changes, refresh the base credit (drives total duration). */
     public function updatedSubjectId(): void
     {
         $this->subjectCredit = $this->subject_id
@@ -201,6 +233,10 @@ new class extends Component {
             : 0;
     }
 
+    /**
+     * Open the sheet in create mode. Resets the form, defaults Active on, optionally
+     * preselects a subject (prefilling its credit), and primes all picker option lists.
+     */
     #[On("open-activity-create")]
     public function openCreate(?int $subjectId = null): void
     {
@@ -226,6 +262,11 @@ new class extends Component {
         $this->modal = true;
     }
 
+    /**
+     * Open the sheet in edit mode for one activity: load its planning/teachers/
+     * students/tags into the form, derive extra duration as (duration - credit), and
+     * prime the picker option lists.
+     */
     #[On("open-activity-edit")]
     public function openEdit(int $id): void
     {
@@ -251,11 +292,18 @@ new class extends Component {
         $this->modal = true;
     }
 
+    /** Open the tag-manager sheet. */
     public function openManageTags(): void
     {
         $this->dispatch("open-tag-manager");
     }
 
+    /**
+     * Validate and persist the activity. Upserts (and restores if soft-deleted) the
+     * subject's ActivityPlanning for this program + semester, sets duration to
+     * credit + extra, creates or updates the Activity, syncs teacher/student/tag
+     * pivots, closes the sheet, and emits 'activity-changed' for the parent.
+     */
     public function save(): void
     {
         $this->validate([
