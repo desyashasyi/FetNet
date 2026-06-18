@@ -4,6 +4,11 @@ use Livewire\Component;
 use Mary\Traits\Toast;
 use App\Models\FetNet\ActivityTimeConstraint;
 
+/**
+ * Read-only summary table of activity time constraints (passed in as $rows). Each row
+ * shows the activity, a hover mini-grid of its blocked slots, and edit/clear actions
+ * that delegate back to the blocked-slots sheet / delete the constraints.
+ */
 new class extends Component
 {
     use Toast;
@@ -13,11 +18,13 @@ new class extends Component
     public array $slotLabels   = [];
     public int   $numberOfDays = 0;
 
+    /** Open the blocked-slots sheet to edit this activity. */
     public function edit(int $id): void
     {
         $this->dispatch('open-activity-edit', activityId: $id);
     }
 
+    /** Clear all blocked slots for an activity and notify the parent. */
     public function clearBlocked(int $id): void
     {
         ActivityTimeConstraint::where('activity_id', $id)->delete();

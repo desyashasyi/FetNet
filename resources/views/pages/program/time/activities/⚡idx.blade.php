@@ -10,15 +10,23 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Activity time-constraints page: lists the semester's activities that have "not
+ * available" slot blocks (as a summary grid) and opens the blocked-slots sheet to edit
+ * them. Slot layout comes from the client's ClientConfig. Uses HasProgramSemester for
+ * the year/semester context. Hosts the summary + blocked-sheet children.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast, HasProgramSemester;
 
+    /** The signed-in user's program. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** The client's scheduling config (day/hour layout). */
     private function config()
     {
         $program = $this->program();
@@ -26,17 +34,20 @@ new #[Layout('layouts.program')] class extends Component
         return Client::with('config')->find($program->client_id)?->config;
     }
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $program = $this->program();
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
+    /** Persist the chosen semester. */
     public function updatedSemesterId(): void
     {
         $this->persistSemester();
     }
 
+    /** Changing academic year clears the semester, reloads options, and persists. */
     public function updatedAcademicYearId(): void
     {
         $this->semesterId = null;
@@ -44,17 +55,23 @@ new #[Layout('layouts.program')] class extends Component
         $this->persistSemester();
     }
 
+    /** Open the blocked-slots sheet to add constraints to an activity. */
     public function openAdd(): void
     {
         $this->dispatch('open-activity-add');
     }
 
+    /** Re-render after the blocked-slots sheet changes constraints. */
     #[On('activity-blocked-changed')]
     public function refreshFromChild(): void
     {
         // empty: presence triggers re-render after child save
     }
 
+    /**
+     * View data: the config day/hour layout and a per-activity summary of blocked slots
+     * (subject, detail, count, and a day-hour blockedMap) for the chosen semester.
+     */
     public function with(): array
     {
         $config  = $this->config();

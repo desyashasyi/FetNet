@@ -10,6 +10,12 @@ use Livewire\Attributes\Reactive;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Blocked-slots sheet for one activity: a day×hour grid where the program marks slots in
+ * which the activity may NOT be scheduled (ActivityTimeConstraint rows). Reactive on
+ * programId + semesterId. Supports toggling a single cell, a whole day, a whole hour, or
+ * clearing all; each change broadcasts 'activity-blocked-changed'.
+ */
 new class extends Component
 {
     use Toast;
@@ -22,6 +28,7 @@ new class extends Component
     public array $blocked         = [];
     public array $activityOptions = [];
 
+    /** The client's scheduling config (day/hour layout). */
     #[Computed]
     public function config()
     {
@@ -30,6 +37,7 @@ new class extends Component
         return Client::with('config')->find($program->client_id)?->config;
     }
 
+    /** Live search for the activity picker (this program + semester) by subject. */
     public function searchActivities(string $value = ''): void
     {
         if (! $this->programId || ! $this->semesterId) { $this->activityOptions = []; return; }
@@ -51,11 +59,13 @@ new class extends Component
             })->values()->toArray();
     }
 
+    /** When the picked activity changes, load its blocked grid. */
     public function updatedActivityId(): void
     {
         $this->loadBlocked();
     }
 
+    /** Open the sheet fresh (no activity selected yet). */
     #[On('open-activity-add')]
     public function openAdd(): void
     {
@@ -64,6 +74,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open the sheet for a specific activity, loading its blocked grid. */
     #[On('open-activity-edit')]
     public function openEdit(int $activityId): void
     {
@@ -73,6 +84,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Load the activity's blocked cells into $blocked keyed "day-hour". */
     private function loadBlocked(): void
     {
         if (! $this->activityId) { $this->blocked = []; return; }
@@ -83,6 +95,7 @@ new class extends Component
             ->toArray();
     }
 
+    /** Toggle a single day/hour cell blocked⇄available. */
     public function toggle(int $day, int $hour): void
     {
         if (! $this->activityId) return;
@@ -101,6 +114,7 @@ new class extends Component
         $this->dispatch('activity-blocked-changed');
     }
 
+    /** Toggle an entire day: block all its hours, or clear them if all were blocked. */
     public function toggleDay(int $day): void
     {
         if (! $this->activityId) return;
@@ -124,6 +138,7 @@ new class extends Component
         $this->dispatch('activity-blocked-changed');
     }
 
+    /** Toggle an entire hour row across all days (block all, or clear if all blocked). */
     public function toggleSlot(int $hour): void
     {
         if (! $this->activityId) return;
@@ -147,6 +162,7 @@ new class extends Component
         $this->dispatch('activity-blocked-changed');
     }
 
+    /** Remove all blocked slots for this activity. */
     public function clearBlocked(): void
     {
         if (! $this->activityId) return;
@@ -156,6 +172,7 @@ new class extends Component
         $this->dispatch('activity-blocked-changed');
     }
 
+    /** Grid dimensions + day/slot labels from the client config. */
     public function with(): array
     {
         $config = $this->config;

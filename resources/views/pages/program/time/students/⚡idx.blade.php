@@ -11,6 +11,13 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Student time-constraints page: pick a target (one group / all groups) and a constraint
+ * type (not-available slots, or a numeric rule like max hours daily) and manage the
+ * StudentConstraint / StudentTimeConstraint rows for the program. Renders the shared
+ * numeric or not-available summary and hosts the shared constraint sheet. Uses
+ * HasProgramSemester for the year/semester context.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast, HasProgramSemester;
@@ -18,11 +25,13 @@ new #[Layout('layouts.program')] class extends Component
     public ?string $constraintType = null;
     public string  $target         = 'student';
 
+    /** The signed-in user's program. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** The client's scheduling config (day/hour layout). */
     private function config()
     {
         $program = $this->program();
@@ -30,6 +39,7 @@ new #[Layout('layouts.program')] class extends Component
         return Client::with('config')->find($program->client_id)?->config;
     }
 
+    /** All student nodes for the program (with two ancestors) for label building. */
     private function allStudents(): \Illuminate\Support\Collection
     {
         $program = $this->program();
@@ -39,12 +49,14 @@ new #[Layout('layouts.program')] class extends Component
             ->orderBy('name')->get();
     }
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $program = $this->program();
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
+    /** "All groups" can't have not-available slots — reset the type if so. */
     public function updatedTarget(): void
     {
         if ($this->target === 'all' && $this->constraintType === 'not_available') {
@@ -52,11 +64,13 @@ new #[Layout('layouts.program')] class extends Component
         }
     }
 
+    /** Open the constraint sheet to add a numeric constraint. */
     public function openAddConstraint(): void
     {
         $this->dispatch('open-constraint-add');
     }
 
+    /** Delete a numeric constraint by id (from the summary row). */
     #[On('constraint-delete-requested')]
     public function deleteConstraintById(int $id): void
     {
@@ -64,6 +78,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Constraint removed.', position: 'toast-top toast-center');
     }
 
+    /** Clear a student group's not-available slots and the matching weight row. */
     public function clearNotAvailable(int $studentId): void
     {
         StudentTimeConstraint::where('student_id', $studentId)->delete();
@@ -72,12 +87,17 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Not available periods cleared.', position: 'toast-top toast-center');
     }
 
+    /** Re-render after the constraint sheet saves. */
     #[On('constraint-changed')]
     public function refreshFromChild(): void
     {
         // empty: presence triggers re-render after child save
     }
 
+    /**
+     * View data: config layout plus, for the chosen constraint type, either numeric
+     * constraint rows or per-group not-available summaries (with blocked maps + weights).
+     */
     public function with(): array
     {
         $program = $this->program();

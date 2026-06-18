@@ -13,6 +13,13 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Teacher time-constraints page: pick a target (one teacher / all teachers) and a
+ * constraint type (not-available slots, or a numeric/tag rule) and manage the
+ * TeacherConstraint / TeacherTimeConstraint rows for the program. Candidate teachers span
+ * the cluster plus this program's guests. Renders the shared numeric / not-available
+ * summaries and hosts the shared constraint sheet. Uses HasProgramSemester.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast, HasProgramSemester;
@@ -22,11 +29,13 @@ new #[Layout('layouts.program')] class extends Component
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /** The signed-in user's program. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** The client's scheduling config (day/hour layout). */
     private function config()
     {
         $program = $this->program();
@@ -34,6 +43,7 @@ new #[Layout('layouts.program')] class extends Component
         return Client::with('config')->find($program->client_id)?->config;
     }
 
+    /** Teachers across this program's cluster (or just its own if unclustered). */
     private function clusterTeachers(): \Illuminate\Support\Collection
     {
         $program = $this->program();
@@ -48,6 +58,7 @@ new #[Layout('layouts.program')] class extends Component
         return Teacher::whereIn('program_id', $ids)->orderBy('name')->get();
     }
 
+    /** This program's guest teachers (borrowed from other programs). */
     private function guestTeachers(): \Illuminate\Support\Collection
     {
         $program = $this->program();
@@ -57,12 +68,14 @@ new #[Layout('layouts.program')] class extends Component
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $program = $this->program();
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
+    /** "All teachers" can't have not-available slots — reset the type if so. */
     public function updatedTarget(): void
     {
         if ($this->target === 'all' && $this->constraintType === 'not_available') {
@@ -70,11 +83,13 @@ new #[Layout('layouts.program')] class extends Component
         }
     }
 
+    /** Open the constraint sheet to add a numeric/tag constraint. */
     public function openAddConstraint(): void
     {
         $this->dispatch('open-constraint-add');
     }
 
+    /** Delete a numeric constraint by id (from the summary row). */
     #[On('constraint-delete-requested')]
     public function deleteConstraintById(int $id): void
     {
@@ -82,6 +97,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Constraint removed.', position: 'toast-top toast-center');
     }
 
+    /** Clear a teacher's not-available slots and the matching weight row. */
     public function clearNotAvailable(int $teacherId): void
     {
         TeacherTimeConstraint::where('teacher_id', $teacherId)->delete();
@@ -90,6 +106,7 @@ new #[Layout('layouts.program')] class extends Component
         $this->warning('Not available periods cleared.', position: 'toast-top toast-center');
     }
 
+    /** Re-render after the constraint sheet saves. */
     #[On('constraint-changed')]
     public function refreshFromChild(): void
     {
@@ -98,6 +115,11 @@ new #[Layout('layouts.program')] class extends Component
 
     // ── with() ────────────────────────────────────────────────────────────────
 
+    /**
+     * View data: config layout plus, for the chosen constraint type, either numeric/tag
+     * constraint rows or per-teacher not-available summaries (blocked maps + weights),
+     * over the cluster + guest teacher set.
+     */
     public function with(): array
     {
         $config  = $this->config();
