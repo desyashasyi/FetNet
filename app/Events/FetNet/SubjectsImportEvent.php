@@ -8,6 +8,11 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Broadcast (now) when a subject import finishes, on channel `subjects-import` as
+ * `.SubjectsImportEvent`. Payload: status (success|error), message. The subjects UI
+ * listens to refresh + toast.
+ */
 class SubjectsImportEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;

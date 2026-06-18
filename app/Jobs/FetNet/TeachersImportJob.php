@@ -11,6 +11,13 @@ use Illuminate\Foundation\Queue\Queueable;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
+/**
+ * Queued job: import lecturers from an uploaded spreadsheet (via TeacherImport) for a
+ * program. Resolves a cluster-aware abbrev→program_id map so a row naming another
+ * cluster program's lecturer can be attached as a guest. Broadcasts TeachersImportEvent
+ * summarising imported / added-as-guest / skipped counts and any auto-generated codes.
+ * See [[fetnet-job-events]].
+ */
 class TeachersImportJob implements ShouldQueue
 {
     use Queueable;
@@ -23,6 +30,10 @@ class TeachersImportJob implements ShouldQueue
         public int    $programId,
     ) {}
 
+    /**
+     * Build the cluster abbrev→id map, run TeacherImport, then broadcast a summary
+     * (imported / guests / skipped, plus any auto-generated lecturer codes).
+     */
     public function handle(): void
     {
         // Build cluster-aware program map: lowercase abbrev => program_id
@@ -54,6 +65,7 @@ class TeachersImportJob implements ShouldQueue
         TeachersImportEvent::dispatch('success', $message);
     }
 
+    /** On failure, broadcast an error event with the message. */
     public function failed(Throwable $e): void
     {
         TeachersImportEvent::dispatch('error', 'Import gagal: ' . $e->getMessage());

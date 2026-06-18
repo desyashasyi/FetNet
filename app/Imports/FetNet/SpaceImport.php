@@ -11,6 +11,12 @@ use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
+/**
+ * Excel/CSV importer for rooms (spaces) scoped to a client. Heading-row based; matches
+ * building + type by code OR name (case-insensitive), auto-registering an unknown
+ * building or space type on the fly. Non-destructive: each row is updateOrCreate keyed
+ * on (name, client_id) and un-trashed. Tracks $imported / $skipped counts for the job.
+ */
 class SpaceImport implements ToCollection, WithHeadingRow
 {
     public int   $imported = 0;
@@ -20,6 +26,10 @@ class SpaceImport implements ToCollection, WithHeadingRow
         public int $clientId,
     ) {}
 
+    /**
+     * Upsert each spreadsheet row into a Space. Rows without a name are skipped;
+     * building/type keys auto-create their lookups when missing.
+     */
     public function collection(Collection $rows): void
     {
         // Build mutable lookup maps — index by both code and name for flexible matching

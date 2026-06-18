@@ -8,6 +8,12 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Broadcast (now) when the solver run ends, on channel `fet-solve.<compileId>` as
+ * `.SolverFinishedEvent`. Payload (broadcastWith): compile_id, status
+ * (success|failed|stopped), message, result_path. The solve UI listens to show the
+ * outcome and load the timetable.
+ */
 class SolverFinishedEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;

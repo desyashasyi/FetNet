@@ -4,12 +4,17 @@ namespace App\Models\FetNet;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * A category of room (e.g. theory class, laboratory). Table `fetnet_space_type`.
+ * is_theory marks general theory rooms vs specialised spaces.
+ */
 class SpaceType extends Model
 {
     protected $table   = 'fetnet_space_type';
     protected $guarded = [];
     protected $casts   = ['is_theory' => 'boolean'];
 
+    /** Rooms of this type. */
     public function spaces()
     {
         return $this->hasMany(Space::class, 'type_id');

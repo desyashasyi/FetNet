@@ -4,6 +4,11 @@ namespace App\Models\FetNet;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * One academic term under a client + academic year. Table `fetnet_semester`.
+ * Columns: client_id, academic_year_id, semester (1=odd|2=even), name, start_month,
+ * end_month, lecture_start, lecture_end. `label` accessor renders a human term name.
+ */
 class Semester extends Model
 {
     protected $table   = 'fetnet_semester';
@@ -13,16 +18,22 @@ class Semester extends Model
         'lecture_end'   => 'date',
     ];
 
+    /** Owning client. */
     public function client()
     {
         return $this->belongsTo(Client::class, 'client_id', 'id');
     }
 
+    /** Parent academic year. */
     public function academicYear()
     {
         return $this->belongsTo(AcademicYear::class, 'academic_year_id');
     }
 
+    /**
+     * Human label: the term name (or Odd/Even fallback) plus a "(Month–Month)" range
+     * when start/end months are set, e.g. "Odd (September–December)".
+     */
     public function getLabelAttribute(): string
     {
         $names = [

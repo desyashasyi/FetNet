@@ -8,6 +8,10 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Broadcast (now) when a lecturer import finishes, on channel `teachers-import` as
+ * `.TeachersImportEvent`. Payload: status, message. The teachers UI listens to refresh + toast.
+ */
 class TeachersImportEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;

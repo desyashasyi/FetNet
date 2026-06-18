@@ -13,6 +13,16 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\Process\Process;
 use Throwable;
 
+/**
+ * Long-running queued job (on the `timetable` queue): runs the external `fet-cl` solver
+ * against a successful FetCompile's input file, streaming its stdout/stderr to the
+ * frontend as SolverLogEvent batches, and periodically requesting intermediate snapshots
+ * via the fet-cl "sigwrite" file. On finish it parses the result, upserts TimetableSlot
+ * rows, updates the compile's solver_* fields, and broadcasts SolverFinishedEvent.
+ *
+ * No timeout: the solver runs until success, impossibility, or a user Stop (SIGTERM,
+ * detected via solver_status='stopping'). See [[fetnet-job-events]].
+ */
 class SolveTimetableJob implements ShouldQueue
 {
     use Queueable;
@@ -30,6 +40,11 @@ class SolveTimetableJob implements ShouldQueue
         $this->onQueue('timetable');
     }
 
+    /**
+     * Launch fet-cl, stream its output live (batched broadcasts), poll for completion
+     * while interleaving sigwrite snapshot requests, then persist slots + final status
+     * and broadcast SolverFinishedEvent. No-op if the compile isn't a successful build.
+     */
     public function handle(): void
     {
         $compile = FetCompile::find($this->compileId);
@@ -154,6 +169,10 @@ class SolveTimetableJob implements ShouldQueue
         } catch (Throwable) {}
     }
 
+    /**
+     * Parse the solver's result .fet (via FetSolutionParser + the activity-id map) and
+     * upsert one locked TimetableSlot per placed activity for this client + semester.
+     */
     private function upsertSlotsFromResult(FetCompile $compile, string $resultRel): void
     {
         $mapRel = "fet/{$compile->client_id}/sem{$compile->semester_id}.map.json";
@@ -179,6 +198,7 @@ class SolveTimetableJob implements ShouldQueue
         }
     }
 
+    /** Find the solver's "<base>_data_and_timetable.fet" output, or null if absent. */
     private function locateResultFile(string $outputRel, string $inputRel): ?string
     {
         $base = pathinfo($inputRel, PATHINFO_FILENAME);
@@ -198,6 +218,7 @@ class SolveTimetableJob implements ShouldQueue
         return null;
     }
 
+    /** On worker crash, mark the compile's solver failed and broadcast. */
     public function failed(Throwable $e): void
     {
         $compile = FetCompile::find($this->compileId);

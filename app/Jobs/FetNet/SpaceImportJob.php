@@ -9,6 +9,11 @@ use Illuminate\Foundation\Queue\Queueable;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
+/**
+ * Queued job: import rooms from an uploaded spreadsheet (via SpaceImport) for a client,
+ * then broadcast SpaceImportEvent with the imported/skipped counts. See
+ * [[fetnet-job-events]].
+ */
 class SpaceImportJob implements ShouldQueue
 {
     use Queueable;
@@ -21,6 +26,7 @@ class SpaceImportJob implements ShouldQueue
         public int    $clientId,
     ) {}
 
+    /** Run the SpaceImport and broadcast a success summary. */
     public function handle(): void
     {
         $importer = new SpaceImport($this->clientId);
@@ -30,6 +36,7 @@ class SpaceImportJob implements ShouldQueue
         SpaceImportEvent::dispatch('success', $message);
     }
 
+    /** On failure, broadcast an error event with the message. */
     public function failed(Throwable $e): void
     {
         SpaceImportEvent::dispatch('error', 'Import gagal: ' . $e->getMessage());

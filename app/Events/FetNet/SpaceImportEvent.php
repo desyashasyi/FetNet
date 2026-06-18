@@ -8,6 +8,10 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Broadcast (now) when a room import finishes, on channel `space-import` as
+ * `.SpaceImportEvent`. Payload: status, message. The spaces UI listens to refresh + toast.
+ */
 class SpaceImportEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;

@@ -8,6 +8,11 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Broadcast (now) when a FET compile finishes, on channel `fet-compile.<clientId>` as
+ * `.FetCompiledEvent`. Payload (broadcastWith): clientId, status (success|failed), path,
+ * message, compile_id. The compile UI listens to enable/disable solving.
+ */
 class FetCompiledEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;

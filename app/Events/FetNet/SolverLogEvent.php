@@ -8,6 +8,11 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Broadcast (now) to stream a batch of solver log lines live, on channel
+ * `fet-solve.<compileId>` as `.SolverLogEvent`. Payload (broadcastWith): compile_id,
+ * lines[]. The solve UI appends these to its log console.
+ */
 class SolverLogEvent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;

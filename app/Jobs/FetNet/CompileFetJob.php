@@ -12,6 +12,12 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
+/**
+ * Queued job: build the FET solver input (.fet XML + activity-id map) for a client +
+ * semester via FetXmlBuilder, persist it to local storage, and record the run in
+ * FetCompile. Broadcasts FetCompiledEvent (success|failed). The compile is the
+ * prerequisite for SolveTimetableJob. See [[fetnet-job-events]].
+ */
 class CompileFetJob implements ShouldQueue
 {
     use Queueable;
@@ -25,6 +31,11 @@ class CompileFetJob implements ShouldQueue
         public ?int $userId = null,
     ) {}
 
+    /**
+     * Create a pending FetCompile, build + store the .fet and .map.json, then mark the
+     * record success (with size + duration) and broadcast; on error mark failed and
+     * broadcast the message.
+     */
     public function handle(FetXmlBuilder $builder): void
     {
         $start  = hrtime(true);
@@ -77,6 +88,7 @@ class CompileFetJob implements ShouldQueue
         }
     }
 
+    /** On worker crash, mark the latest pending compile failed and broadcast. */
     public function failed(Throwable $e): void
     {
         FetCompile::where('client_id', $this->clientId)

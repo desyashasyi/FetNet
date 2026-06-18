@@ -9,6 +9,12 @@ use Illuminate\Foundation\Queue\Queueable;
 use Maatwebsite\Excel\Facades\Excel;
 use Throwable;
 
+/**
+ * Queued job: import subjects from an uploaded spreadsheet (via SubjectImport) for a
+ * program, then broadcast SubjectsImportEvent with the imported/skipped counts. The
+ * import is non-destructive (updateOrCreate keyed on code+program_id). See
+ * [[fetnet-job-events]].
+ */
 class SubjectsImportJob implements ShouldQueue
 {
     use Queueable;
@@ -21,6 +27,7 @@ class SubjectsImportJob implements ShouldQueue
         public int    $programId,
     ) {}
 
+    /** Run the SubjectImport and broadcast a success summary. */
     public function handle(): void
     {
         $importer = new SubjectImport($this->programId);
@@ -32,6 +39,7 @@ class SubjectsImportJob implements ShouldQueue
         );
     }
 
+    /** On failure, broadcast an error event with the message. */
     public function failed(Throwable $e): void
     {
         SubjectsImportEvent::dispatch('error', 'Import failed: ' . $e->getMessage());
