@@ -9,24 +9,35 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
+/**
+ * Space → Activities page for the program: lists the semester's activities with a count
+ * of assigned rooms, opens the assign-rooms sheet per activity, and the claim sheet to
+ * request shared spaces. Uses HasProgramSemester for the year/semester context. Hosts
+ * the assign-rooms-sheet and claim-sheet children.
+ */
 new #[Layout('layouts.program')] class extends Component
 {
     use Toast, WithPagination, HasProgramSemester;
 
     public string $search = '';
 
+    /** The signed-in user's program; scopes the activities. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Seed the academic-year/semester context for the program's client. */
     public function mount(): void
     {
         $program = $this->program();
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
+    /** Search resets pagination. */
     public function updatedSearch(): void { $this->resetPage(); }
+
+    /** Changing academic year clears the semester, reloads options, persists, resets page. */
     public function updatedAcademicYearId(): void
     {
         $this->semesterId = null;
@@ -34,21 +45,27 @@ new #[Layout('layouts.program')] class extends Component
         $this->persistSemester();
         $this->resetPage();
     }
+
+    /** Persist the chosen semester and reset pagination. */
     public function updatedSemesterId(): void { $this->persistSemester(); $this->resetPage(); }
 
+    /** Open the assign-rooms sheet for one activity. */
     public function openAssignSpace(int $activityId): void
     {
         $this->dispatch('open-assign-rooms', activityId: $activityId);
     }
 
+    /** Open the space claim sheet. */
     public function openClaimModal(): void
     {
         $this->dispatch('open-claim');
     }
 
+    /** Re-render after rooms are assigned/removed in a child sheet. */
     #[On('rooms-changed')]
     public function refreshActivities(): void {}
 
+    /** Paginated semester activities decorated with subject/type/teacher labels + room count. */
     public function with(): array
     {
         $program = $this->program();

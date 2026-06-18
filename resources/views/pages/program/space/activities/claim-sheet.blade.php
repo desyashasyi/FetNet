@@ -8,6 +8,12 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * "Manage Spaces" sheet: lets a program request (claim) shared rooms from its client and
+ * cancel claims. Lists the program's existing claims (accepted/pending/rejected) and a
+ * paged, searchable list of all client spaces to claim from. Claims start 'pending' for
+ * client approval.
+ */
 new class extends Component
 {
     use Toast;
@@ -18,11 +24,13 @@ new class extends Component
     public int    $claimPage       = 1;
     public int    $spacePage       = 1;
 
+    /** The signed-in user's program. */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** This program's claims, accepted first then pending, newest first. */
     #[Computed]
     public function myClaims()
     {
@@ -35,6 +43,7 @@ new class extends Component
             : collect();
     }
 
+    /** Open the sheet: reset search/paging and load the available spaces. */
     #[On('open-claim')]
     public function open(): void
     {
@@ -45,12 +54,14 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Search-term change resets the space list page and reloads. */
     public function updatedClaimQuery(): void
     {
         $this->spacePage = 1;
         $this->searchAvailableSpaces();
     }
 
+    /** Load client spaces (filtered by query), each with this program's existing claim. */
     public function searchAvailableSpaces(): void
     {
         $program = $this->program();
@@ -70,6 +81,7 @@ new class extends Component
             ])->toArray();
     }
 
+    /** Request (or re-request) a space — upserts a 'pending' claim. */
     public function claimSpace(int $spaceId): void
     {
         $program = $this->program();
@@ -83,6 +95,7 @@ new class extends Component
         $this->success('Claim request sent.', position: 'toast-top toast-center');
     }
 
+    /** Cancel/remove one of this program's claims. */
     public function cancelClaim(int $claimId): void
     {
         $program = $this->program();
@@ -93,6 +106,7 @@ new class extends Component
         $this->warning('Claim cancelled.', position: 'toast-top toast-center');
     }
 
+    /** In-memory pagers for the claims list and the available-spaces list. */
     public function claimPagePrev(): void { if ($this->claimPage > 1) $this->claimPage--; }
     public function claimPageNext(int $last): void { if ($this->claimPage < $last) $this->claimPage++; }
     public function spacePagePrev(): void { if ($this->spacePage > 1) $this->spacePage--; }

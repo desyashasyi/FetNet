@@ -3,8 +3,10 @@
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 
+/** Placeholder page for per-teacher room preferences (not yet implemented). */
 new #[Layout('layouts.program')] class extends Component
 {
+    /** Render the "coming soon" placeholder. */
     public function render(): string
     {
         return <<<'BLADE'

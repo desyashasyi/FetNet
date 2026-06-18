@@ -11,6 +11,12 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Assign-rooms sheet for one activity: two panes — available rooms (the program's
+ * client-accepted spaces, filterable by building/type/capacity) and already-assigned
+ * rooms. Program can add/remove rooms it assigned ('program' on the pivot) but not those
+ * the client locked in ('client'). Each change broadcasts 'rooms-changed' for the parent.
+ */
 new class extends Component
 {
     use Toast;
@@ -44,6 +50,7 @@ new class extends Component
         return Program::where('user_id', auth()->id())->first();
     }
 
+    /** Open for one activity: load its current rooms, subject info, headcount, and filters. */
     #[On('open-assign-rooms')]
     public function open(int $activityId): void
     {
@@ -71,15 +78,18 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Filter changes reset the available-rooms page. */
     public function updatedBuildingFilter(): void { $this->assignPage = 1; }
     public function updatedTypeFilter(): void     { $this->assignPage = 1; }
     public function updatedCapacityFilter(): void { $this->assignPage = 1; }
 
+    /** In-memory pagers for the available and assigned room lists. */
     public function assignPrev(): void { if ($this->assignPage > 1) $this->assignPage--; }
     public function assignNext(int $last): void { if ($this->assignPage < $last) $this->assignPage++; }
     public function assignedPrev(): void { if ($this->assignedPage > 1) $this->assignedPage--; }
     public function assignedNext(int $last): void { if ($this->assignedPage < $last) $this->assignedPage++; }
 
+    /** Assign one room to the activity (pivot assigned_by = 'program'); broadcast change. */
     public function selectSpace(int $spaceId): void
     {
         Activity::findOrFail($this->assignActivityId)->spaces()->syncWithoutDetaching([$spaceId => ['assigned_by' => 'program']]);
@@ -89,6 +99,7 @@ new class extends Component
         $this->dispatch('rooms-changed');
     }
 
+    /** Remove a room — only if the program assigned it; client-locked rooms are protected. */
     public function removeSpace(int $spaceId): void
     {
         $pivot = \DB::table('fetnet_activity_space')
@@ -109,6 +120,7 @@ new class extends Component
         $this->dispatch('rooms-changed');
     }
 
+    /** Remove every program-assigned room from the activity (client rooms untouched). */
     public function removeAll(): void
     {
         $programSpaceIds = \DB::table('fetnet_activity_space')
@@ -129,6 +141,7 @@ new class extends Component
         $this->dispatch('rooms-changed');
     }
 
+    /** Assign every room matching the current filters (excluding already-assigned). */
     public function selectAll(): void
     {
         $program = $this->program();
@@ -152,6 +165,11 @@ new class extends Component
         $this->dispatch('rooms-changed');
     }
 
+    /**
+     * View data: the paged available rooms (from the program's client-accepted spaces,
+     * minus already-assigned, honouring filters) and the paged assigned rooms decorated
+     * with their assigned_by source, plus totals/last-page for each pager.
+     */
     public function with(): array
     {
         $program = $this->program();
