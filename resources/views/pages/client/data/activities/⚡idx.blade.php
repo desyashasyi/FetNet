@@ -16,7 +16,7 @@ new #[Layout('layouts.client')] class extends Component
     use WithPagination, Toast, HasProgramSemester;
 
     public string $search          = '';
-    public string $view            = 'subject';
+    public string $view            = 'all';
     public ?int   $filterProgramId = null;
     public array  $programOptions  = [];
     public int    $activitiesKey   = 0;

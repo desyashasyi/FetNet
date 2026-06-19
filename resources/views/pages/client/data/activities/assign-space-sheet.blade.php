@@ -17,6 +17,7 @@ new class extends Component
     use Toast;
 
     public bool   $modal              = false;
+    public bool   $dirty              = false;
     public ?int   $assignActivityId   = null;
     public array  $assignSpaceIds     = [];
     public ?int   $buildingFilter     = null;
@@ -57,7 +58,22 @@ new class extends Component
             ? $this->success($event['message'], position: 'toast-top toast-center')
             : $this->error($event['message'],   position: 'toast-top toast-center');
 
-        $this->dispatch('activity-spaces-changed');
+        // Defer the parent refresh until the modal closes (a parent re-render now would
+        // morph this bottom-slide modal shut). See updatedModal().
+        $this->dirty = true;
+    }
+
+    /**
+     * When the modal closes (via the X button), flush the deferred parent refresh once so
+     * the activities table picks up the new room counts. Keeping it deferred is what stops
+     * the modal from closing after each single assignment.
+     */
+    public function updatedModal(bool $value): void
+    {
+        if (! $value && $this->dirty) {
+            $this->dispatch('activity-spaces-changed');
+            $this->dirty = false;
+        }
     }
 
     #[On('open-assign-space')]
@@ -67,6 +83,7 @@ new class extends Component
         $activity = Activity::with(['planning.subject', 'students'])->findOrFail($activityId);
 
         $this->assignActivityId = $activityId;
+        $this->dirty            = false;
         $this->assignSpaceIds   = $activity->spaces()->pluck('fetnet_space.id')->toArray();
         $this->buildingFilter   = null;
         $this->typeFilter       = null;
@@ -105,7 +122,7 @@ new class extends Component
         Activity::findOrFail($this->assignActivityId)->spaces()->attach($spaceId, ['assigned_by' => 'client']);
         $this->assignSpaceIds[] = $spaceId;
         $this->success('Space assigned.', position: 'toast-top toast-center');
-        $this->dispatch('activity-spaces-changed');
+        $this->dirty = true; // parent refresh deferred until the modal closes
     }
 
     public function removeSpace(int $spaceId): void
@@ -117,7 +134,7 @@ new class extends Component
         $assignedLast    = $assignedTotal > 0 ? (int) ceil($assignedTotal / $assignedPerPage) : 1;
         if ($this->assignedPage > $assignedLast) $this->assignedPage = $assignedLast;
         $this->warning('Space removed.', position: 'toast-top toast-center');
-        $this->dispatch('activity-spaces-changed');
+        $this->dirty = true; // parent refresh deferred until the modal closes
     }
 
     public function removeAll(): void
@@ -126,7 +143,7 @@ new class extends Component
         $this->assignSpaceIds = [];
         $this->assignedPage   = 1;
         $this->warning('All spaces queued for removal.', position: 'toast-top toast-center');
-        $this->dispatch('activity-spaces-changed');
+        $this->dirty = true; // parent refresh deferred until the modal closes
     }
 
     public function selectAll(): void
@@ -151,7 +168,7 @@ new class extends Component
         AssignSpacesToActivityJob::dispatch($this->assignActivityId, $newIds);
         $this->assignSpaceIds = array_merge($this->assignSpaceIds, $newIds);
         $this->success(count($newIds) . ' spaces queued for assignment.', position: 'toast-top toast-center');
-        $this->dispatch('activity-spaces-changed');
+        $this->dirty = true; // parent refresh deferred until the modal closes
     }
 
     public function with(): array
@@ -191,8 +208,12 @@ new class extends Component
 }; ?>
 
 <div>
-    <x-modal wire:model="modal" title="Assign Space"
+    <x-modal wire:model="modal" title="Assign Space" persistent
              separator class="modal-bottom" box-class="!max-w-[96rem] mx-auto !rounded-t-2xl !mb-14">
+        {{-- Close only via this X (modal is persistent: no click-outside / ESC close). --}}
+        <x-button icon="o-x-mark" class="btn-circle btn-ghost btn-sm absolute right-3 top-3 z-10"
+                  wire:click="$set('modal', false)" tooltip-left="Close" />
+
         <div class="grid grid-cols-2 gap-6">
             <div class="space-y-3">
                 <div class="flex gap-2 flex-wrap">
