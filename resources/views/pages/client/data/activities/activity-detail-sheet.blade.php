@@ -8,12 +8,17 @@ new class extends Component
 {
     public bool  $modal      = false;
     public array $detailData = [];
+    public int   $spacePage  = 1;
+
+    private const SPACES_PER_PAGE = 5;
 
     #[On('open-activity-detail')]
     public function open(int $activityId): void
     {
         $activity = Activity::with(['planning.subject', 'type', 'teachers', 'students', 'spaces.building', 'tags'])
             ->findOrFail($activityId);
+
+        $this->spacePage = 1;
 
         $this->detailData = [
             'subject'  => trim(($activity->planning?->subject?->code ?? '') . ' — ' . ($activity->planning?->subject?->name ?? ''), ' — '),
@@ -33,6 +38,22 @@ new class extends Component
 
         $this->modal = true;
     }
+
+    /** In-memory pager for the assigned-rooms list (5 per page). */
+    public function spacePrev(): void { if ($this->spacePage > 1) $this->spacePage--; }
+    public function spaceNext(int $lastPage): void { if ($this->spacePage < $lastPage) $this->spacePage++; }
+
+    /** Slice the assigned rooms to the current page and expose the plotted count. */
+    public function with(): array
+    {
+        $spaces    = $this->detailData['spaces'] ?? [];
+        $spaceTotal = count($spaces);
+        $perPage   = self::SPACES_PER_PAGE;
+        $lastPage  = max(1, (int) ceil($spaceTotal / $perPage));
+        $pageSpaces = array_slice($spaces, ($this->spacePage - 1) * $perPage, $perPage);
+
+        return compact('spaceTotal', 'lastPage', 'pageSpaces');
+    }
 }; ?>
 
 <div>
@@ -44,7 +65,8 @@ new class extends Component
                 <p class="text-xs text-base-content/50 mb-0.5">Subject</p>
                 <p class="font-semibold">{{ $detailData['subject'] ?? '—' }}</p>
             </div>
-            <div class="flex gap-6 flex-wrap">
+            {{-- Type, Duration, Status, Teachers and Student Groups share one info row. --}}
+            <div class="flex gap-x-6 gap-y-3 flex-wrap items-start">
                 <div>
                     <p class="text-xs text-base-content/50 mb-0.5">Type</p>
                     <p>{{ $detailData['type'] }}</p>
@@ -61,36 +83,49 @@ new class extends Component
                         <x-badge value="Inactive" class="badge-ghost badge-sm" />
                     @endif
                 </div>
+                <div>
+                    <p class="text-xs text-base-content/50 mb-0.5">Teachers</p>
+                    @if(count($detailData['teachers']))
+                        <div class="flex flex-wrap gap-1">
+                            @foreach($detailData['teachers'] as $t)
+                                <x-badge value="{{ $t }}" class="badge-neutral badge-sm" />
+                            @endforeach
+                        </div>
+                    @else
+                        <span class="text-base-content/30 italic">—</span>
+                    @endif
+                </div>
+                <div>
+                    <p class="text-xs text-base-content/50 mb-0.5">Student Groups</p>
+                    @if(count($detailData['groups']))
+                        <div class="flex flex-wrap gap-1">
+                            @foreach($detailData['groups'] as $g)
+                                <x-badge value="{{ $g }}" class="badge-info badge-sm" />
+                            @endforeach
+                        </div>
+                    @else
+                        <span class="text-base-content/30 italic">—</span>
+                    @endif
+                </div>
             </div>
             <div>
-                <p class="text-xs text-base-content/50 mb-0.5">Teachers</p>
-                @if(count($detailData['teachers']))
-                    <div class="flex flex-wrap gap-1">
-                        @foreach($detailData['teachers'] as $t)
-                            <x-badge value="{{ $t }}" class="badge-neutral badge-sm" />
-                        @endforeach
+                <div class="flex items-center justify-between mb-1">
+                    <p class="text-xs text-base-content/50">
+                        Spaces — <span class="font-semibold text-base-content">{{ $spaceTotal }}</span> ruangan diplot
+                    </p>
+                    @if($lastPage > 1)
+                    <div class="join">
+                        <x-button class="btn-xs join-item" icon="o-chevron-left"
+                                  wire:click="spacePrev" :disabled="$spacePage <= 1" />
+                        <span class="join-item btn btn-xs btn-ghost pointer-events-none">{{ $spacePage }} / {{ $lastPage }}</span>
+                        <x-button class="btn-xs join-item" icon="o-chevron-right"
+                                  wire:click="spaceNext({{ $lastPage }})" :disabled="$spacePage >= $lastPage" />
                     </div>
-                @else
-                    <span class="text-base-content/30 italic">No teachers assigned</span>
-                @endif
-            </div>
-            <div>
-                <p class="text-xs text-base-content/50 mb-0.5">Student Groups</p>
-                @if(count($detailData['groups']))
-                    <div class="flex flex-wrap gap-1">
-                        @foreach($detailData['groups'] as $g)
-                            <x-badge value="{{ $g }}" class="badge-info badge-sm" />
-                        @endforeach
-                    </div>
-                @else
-                    <span class="text-base-content/30 italic">No groups assigned</span>
-                @endif
-            </div>
-            <div>
-                <p class="text-xs text-base-content/50 mb-0.5">Spaces</p>
-                @if(count($detailData['spaces']))
+                    @endif
+                </div>
+                @if($spaceTotal)
                     <div class="space-y-1.5">
-                        @foreach($detailData['spaces'] as $s)
+                        @foreach($pageSpaces as $s)
                         <div class="bg-base-200/50 rounded-lg p-2.5 space-y-0.5">
                             <p class="font-medium text-sm">{{ $s['name'] }}</p>
                             <div class="flex gap-4 text-xs text-base-content/60">
