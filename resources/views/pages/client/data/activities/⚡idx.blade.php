@@ -106,7 +106,7 @@ new #[Layout('layouts.client')] class extends Component
                     $item->program_abbrev = $programMap[$s->program_id] ?? '?',
                 ]));
 
-        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students'])
+        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students', 'spaces.building'])
                 ->withCount('spaces')
                 ->when(count($filterIds) && $this->view === 'all', fn($q) => $q->whereIn('program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)))
@@ -120,6 +120,10 @@ new #[Layout('layouts.client')] class extends Component
                     $item->teachers_nm    = $a->teachers->pluck('code')->filter()->implode(', ') ?: '-',
                     $item->students_nm    = $a->students->pluck('name')->implode(', ') ?: '-',
                     $item->program_abbrev = $programMap[$a->program_id] ?? '?',
+                    $item->spaces_list    = $a->spaces->map(fn($s) => [
+                        'name'     => $s->name,
+                        'building' => $s->building?->name,
+                    ])->toArray(),
                 ]));
 
         return compact('subjects', 'activities');
@@ -205,16 +209,39 @@ new #[Layout('layouts.client')] class extends Component
             ['key' => 'action',         'label' => '',         'class' => 'w-2/12 text-right'],
         ];
         @endphp
-        <x-table :striped="true" :headers="$allHeaders" :rows="$activities" with-pagination container-class="overflow-hidden" class="table-fixed">
+        <x-table :striped="true" :headers="$allHeaders" :rows="$activities" with-pagination container-class="overflow-x-auto" class="table-fixed">
             @scope('cell_duration', $row)
                 <div class="text-center">{{ $row->duration }}</div>
             @endscope
 
             @scope('cell_action', $row)
                 <div class="flex items-center justify-end gap-1">
+                    {{-- Assigned spaces shown as a hover popover (like the workload table). --}}
                     @if($row->spaces_count > 0)
-                    <x-button icon="o-eye" class="btn-ghost btn-xs text-primary"
-                              wire:click="openDetail({{ $row->id }})" tooltip="View assigned spaces" />
+                    <div x-data="{ above: false }"
+                         @mouseenter="above = $el.getBoundingClientRect().top < window.innerHeight / 2"
+                         :class="above ? 'dropdown-bottom' : 'dropdown-top'"
+                         class="dropdown dropdown-hover dropdown-end inline-block">
+                        <div tabindex="0" role="button" class="btn btn-ghost btn-xs btn-square text-primary">
+                            <x-icon name="o-eye" class="w-4 h-4" />
+                        </div>
+                        <div tabindex="0"
+                             class="dropdown-content z-50 shadow-lg bg-base-100 border border-base-300 rounded-box p-2 mb-1 text-left min-w-max">
+                            <p class="text-[10px] font-semibold uppercase tracking-wide text-primary mb-1">
+                                {{ $row->spaces_count }} assigned space{{ $row->spaces_count > 1 ? 's' : '' }}
+                            </p>
+                            <div class="space-y-0.5">
+                                @foreach($row->spaces_list as $sp)
+                                    <div class="text-xs whitespace-nowrap">
+                                        <span class="font-semibold">{{ $sp['name'] }}</span>
+                                        @if($sp['building'])
+                                            <span class="text-base-content/50"> — {{ $sp['building'] }}</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
                     @endif
                     <x-button icon="o-building-office" class="btn-ghost btn-xs"
                               wire:click="openAssignSpace({{ $row->id }})">
