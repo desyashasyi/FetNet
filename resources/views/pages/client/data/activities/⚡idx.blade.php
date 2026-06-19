@@ -207,7 +207,7 @@ new #[Layout('layouts.client')] class extends Component
         @if(count($unassignedProgramOptions))
             <x-choices single searchable wire:model.live="unassignedProgramId"
                        :options="$unassignedProgramOptions" placeholder="Prodi belum diplot…"
-                       clearable class="w-max min-w-52" />
+                       clearable class="w-56" />
         @endif
     </div>
 
