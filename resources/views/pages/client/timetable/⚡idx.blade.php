@@ -18,10 +18,29 @@ new #[Layout('layouts.client')] class extends Component
     public ?int $activeSolveCompileId = null;
     public bool $publishModal = false;
     public bool $unpublishModal = false;
+    /** True from clicking "Compile FET" until FetCompiledEvent arrives — drives the progress bar. */
+    public bool $compiling = false;
 
     public function mount(): void
     {
         $this->mountSemesterContext($this->client()?->id);
+        $this->primeActiveSolve();
+    }
+
+    /** Listen for the compile-finished broadcast so the progress bar can resolve in place. */
+    public function getListeners(): array
+    {
+        $cid = $this->clientId;
+        if (! $cid) return [];
+        return ['echo:fet-compile.' . $cid . ',.FetCompiledEvent' => 'onCompiled'];
+    }
+
+    /** Compile finished: stop the progress bar and refresh the derived state (Generate, etc.). */
+    public function onCompiled(array $payload): void
+    {
+        $this->compiling = false;
+        unset($this->lastSuccess, $this->hasPending, $this->hasSlots,
+              $this->downloadResultUrl, $this->isPublished, $this->viewTimetableUrl);
         $this->primeActiveSolve();
     }
 
@@ -81,7 +100,8 @@ new #[Layout('layouts.client')] class extends Component
         if ($this->hasPending)    { $this->info('A compile is already running for this semester.', position: 'toast-top toast-center'); return; }
 
         event(new CompileFetRequestedEvent($cid, $this->semesterId, auth()->id()));
-        $this->info('Compile queued. You will be notified when done.', position: 'toast-top toast-center');
+        $this->compiling = true;
+        $this->info('Compiling FET file…', position: 'toast-top toast-center');
     }
 
     public function generate(): void
@@ -194,6 +214,7 @@ new #[Layout('layouts.client')] class extends Component
 
         <x-button label="Compile FET" icon="o-document-arrow-down"
                   class="btn-primary"
+                  :disabled="$compiling || $this->hasPending"
                   wire:click="compile" spinner="compile" />
 
         <x-button label="Generate Timetable" icon="o-bolt"
@@ -202,6 +223,18 @@ new #[Layout('layouts.client')] class extends Component
                   tooltip="{{ $this->lastSuccess ? 'Run solver on the latest compiled file' : 'Compile a FET file first' }}"
                   wire:click="generate" />
     </div>
+
+    {{-- Compile progress: indeterminate bar shown while a compile is pending; it resolves
+         in place when FetCompiledEvent arrives (see onCompiled). --}}
+    @if($compiling || $this->hasPending)
+        <div class="mb-4 px-3 py-2.5 rounded-md bg-base-200">
+            <div class="flex items-center gap-2 mb-1.5 text-sm font-medium text-base-content/70">
+                <x-loading class="loading-spinner loading-xs text-primary" />
+                Compiling FET file…
+            </div>
+            <progress class="progress progress-primary w-full"></progress>
+        </div>
+    @endif
 
     {{-- Result actions: only meaningful once a timetable has been generated --}}
     @if($this->hasSlots || $this->downloadResultUrl)
