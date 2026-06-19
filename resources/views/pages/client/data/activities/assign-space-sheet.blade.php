@@ -141,6 +141,12 @@ new class extends Component
 
     public function selectSpace(int $spaceId): void
     {
+        // Guard against a double-fire (rapid clicks) re-attaching the same room,
+        // which would violate the fetnet_activity_space (activity_id, space_id) unique key.
+        if (in_array($spaceId, $this->assignSpaceIds, true)) {
+            return;
+        }
+
         Activity::findOrFail($this->assignActivityId)->spaces()->attach($spaceId, ['assigned_by' => 'client']);
         $this->assignSpaceIds[] = $spaceId;
         $this->success('Space assigned.', position: 'toast-top toast-center');
@@ -240,20 +246,22 @@ new class extends Component
             <div class="space-y-3">
                 <div class="flex gap-2 flex-wrap">
                     <div class="flex-1 min-w-28">
-                        <x-choices label="Building" single wire:model.live="buildingFilter"
+                        <x-choices label="Building" single wire:model.live.debounce.300ms="buildingFilter"
                                    :options="$buildingOptions" placeholder="— All —" clearable />
                     </div>
                     <div class="flex-1 min-w-28">
-                        <x-choices label="Type" single wire:model.live="typeFilter"
+                        <x-choices label="Type" single wire:model.live.debounce.300ms="typeFilter"
                                    :options="$typeOptions" placeholder="— All —" clearable />
                     </div>
                     <div class="flex-1 min-w-28">
-                        <x-choices label="Capacity" single wire:model.live="capacityFilter"
+                        <x-choices label="Capacity" single wire:model.live.debounce.300ms="capacityFilter"
                                    :options="$capacityOptions" placeholder="— All —" clearable />
                     </div>
                 </div>
 
-                <div class="overflow-hidden rounded-xl border border-base-200">
+                <div class="overflow-hidden rounded-xl border border-base-200 transition-opacity"
+                     wire:loading.delay.class="opacity-50 pointer-events-none"
+                     wire:target="selectSpace,selectAll,buildingFilter,typeFilter,capacityFilter,assignPrev,assignNext">
                     <table class="table table-sm table-zebra w-full">
                         <thead>
                             <tr class="text-base-content/60 text-xs bg-base-200/50">
@@ -263,7 +271,7 @@ new class extends Component
                                 <th class="w-1/12 text-right">Used</th>
                                 <th class="w-8 text-right">
                                     <x-button icon="o-check-circle" class="btn-primary btn-xs btn-square"
-                                              wire:click="selectAll" tooltip="Assign all filtered" />
+                                              wire:click="selectAll" spinner="selectAll" tooltip="Assign all filtered" />
                                 </th>
                             </tr>
                         </thead>
@@ -278,7 +286,7 @@ new class extends Component
                                 </td>
                                 <td class="text-right">
                                     <x-button icon="o-check-circle" class="btn-primary btn-xs btn-square"
-                                              wire:click="selectSpace({{ $space->id }})" tooltip="Assign" />
+                                              wire:click="selectSpace({{ $space->id }})" spinner tooltip="Assign" />
                                 </td>
                             </tr>
                             @empty
@@ -322,7 +330,9 @@ new class extends Component
                     </div>
                 </div>
 
-                <div class="overflow-hidden rounded-xl border border-base-200">
+                <div class="overflow-hidden rounded-xl border border-base-200 transition-opacity"
+                     wire:loading.delay.class="opacity-50 pointer-events-none"
+                     wire:target="selectSpace,removeSpace,selectAll,removeAll,assignedPrev,assignedNext">
                     <table class="table table-sm table-zebra w-full">
                         <thead>
                             <tr class="text-base-content/60 text-xs bg-base-200/50">
@@ -333,7 +343,7 @@ new class extends Component
                                 <th class="w-8 text-right">
                                     @if(count($assignSpaceIds))
                                     <x-button icon="o-x-circle" class="btn-error btn-xs btn-square btn-outline"
-                                              wire:click="removeAll" tooltip="Remove all" />
+                                              wire:click="removeAll" spinner="removeAll" tooltip="Remove all" />
                                     @endif
                                 </th>
                             </tr>
@@ -349,7 +359,7 @@ new class extends Component
                                 </td>
                                 <td class="text-right">
                                     <x-button icon="o-x-circle" class="btn-error btn-xs btn-square btn-outline"
-                                              wire:click="removeSpace({{ $space->id }})" tooltip="Remove" />
+                                              wire:click="removeSpace({{ $space->id }})" spinner tooltip="Remove" />
                                 </td>
                             </tr>
                             @empty

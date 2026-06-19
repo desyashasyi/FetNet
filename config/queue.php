@@ -69,7 +69,10 @@ return [
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
-            'block_for' => null,
+            // Block (BRPOP) for up to 5s waiting for a job instead of returning null
+            // immediately, so the worker picks up assign/remove-all jobs the moment they
+            // are dispatched rather than after the next --sleep poll. Near-instant pickup.
+            'block_for' => 5,
             'after_commit' => false,
         ],
 
