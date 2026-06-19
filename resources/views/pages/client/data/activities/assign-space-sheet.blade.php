@@ -80,13 +80,15 @@ new class extends Component
     public function open(int $activityId): void
     {
         $client   = Client::where('user_id', auth()->id())->first();
-        $activity = Activity::with(['planning.subject', 'students'])->findOrFail($activityId);
+        $activity = Activity::with(['planning.subject', 'students', 'type'])->findOrFail($activityId);
 
         $this->assignActivityId = $activityId;
         $this->dirty            = false;
         $this->assignSpaceIds   = $activity->spaces()->pluck('fetnet_space.id')->toArray();
         $this->buildingFilter   = null;
-        $this->typeFilter       = null;
+        // Default the room-type filter to match the activity's type:
+        // Laboratory/Studio -> same-named room type; Theory -> a Classroom (theory) room.
+        $this->typeFilter       = $this->defaultRoomTypeId($activity->type?->name);
         $this->capacityFilter   = '';
         $this->assignPage       = 1;
         $this->assignedPage     = 1;
@@ -105,6 +107,26 @@ new class extends Component
             ->toArray();
 
         $this->modal = true;
+    }
+
+    /**
+     * Map an activity type name to the default room type id: an exact name match first
+     * (Laboratory -> Laboratory, Studio -> Studio); for "Theory" fall back to a theory
+     * room, preferring "Classroom". Null when nothing matches (filter stays "All").
+     */
+    private function defaultRoomTypeId(?string $activityTypeName): ?int
+    {
+        if (! $activityTypeName) return null;
+
+        $match = SpaceType::whereRaw('LOWER(name) = ?', [mb_strtolower($activityTypeName)])->first();
+
+        if (! $match && strcasecmp($activityTypeName, 'Theory') === 0) {
+            $match = SpaceType::where('is_theory', true)
+                ->orderByRaw("CASE WHEN LOWER(name) = 'classroom' THEN 0 ELSE 1 END")
+                ->first();
+        }
+
+        return $match?->id;
     }
 
     public function updatedBuildingFilter(): void { $this->assignPage = 1; }
