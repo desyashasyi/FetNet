@@ -21,15 +21,24 @@ new class extends Component
      */
     public array $rows = [];
 
+    /** Current lecturer page (1-based). The table paginates lecturers 10 per page. */
+    public int $page = 1;
+
+    private const PER_PAGE = 10;
+
+    public function prevPage(): void { if ($this->page > 1) $this->page--; }
+    public function nextPage(int $lastPage): void { if ($this->page < $lastPage) $this->page++; }
+
     /**
      * Flatten each row into a uniform list of cells (one per program, then Total) so the
-     * template can render every "P1-P2" hover cell with the same markup.
+     * template can render every "P1-P2" hover cell with the same markup, then slice the
+     * lecturer rows to the current page (10 per page).
      */
     public function with(): array
     {
         $empty = ['p1' => 0, 'p2' => 0, 'p1Detail' => [], 'p2Detail' => []];
 
-        $tableRows = array_map(function ($r) use ($empty) {
+        $allRows = array_map(function ($r) use ($empty) {
             $cells = array_map(
                 fn ($p) => $r['perProgram'][$p['id']] ?? $empty,
                 $this->programs,
@@ -42,13 +51,19 @@ new class extends Component
             ];
         }, $this->rows);
 
-        return ['tableRows' => $tableRows];
+        $total     = count($allRows);
+        $lastPage  = $total > 0 ? (int) ceil($total / self::PER_PAGE) : 1;
+        $page      = max(1, min($this->page, $lastPage));
+        $tableRows = array_slice($allRows, ($page - 1) * self::PER_PAGE, self::PER_PAGE);
+
+        return compact('tableRows', 'total', 'lastPage', 'page');
     }
 }; ?>
 
+<div>
 <x-card>
     <div class="overflow-x-auto">
-        <table class="table table-zebra table-sm w-full">
+        <table class="table table-zebra w-full">
             <thead>
                 <tr class="border-b border-base-200">
                     <th class="text-left py-2 font-medium text-base-content/60">Lecturer</th>
@@ -118,4 +133,18 @@ new class extends Component
             </tbody>
         </table>
     </div>
+
+    @if($lastPage > 1)
+        <div class="flex items-center justify-between mt-3">
+            <span class="text-sm text-base-content/40">{{ $total }} lecturers</span>
+            <div class="join">
+                <x-button class="btn-sm join-item" icon="o-chevron-left"
+                          wire:click="prevPage" :disabled="$page <= 1" />
+                <span class="join-item btn btn-sm btn-ghost pointer-events-none">{{ $page }} / {{ $lastPage }}</span>
+                <x-button class="btn-sm join-item" icon="o-chevron-right"
+                          wire:click="nextPage({{ $lastPage }})" :disabled="$page >= $lastPage" />
+            </div>
+        </div>
+    @endif
 </x-card>
+</div>
