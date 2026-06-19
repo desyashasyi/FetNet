@@ -8,6 +8,7 @@ use App\Models\FetNet\AcademicYear;
 use App\Models\FetNet\Client;
 use App\Models\FetNet\Program;
 use App\Models\FetNet\Semester;
+use App\Models\FetNet\Student;
 use App\Models\FetNet\Subject;
 use App\Models\FetNet\Teacher;
 use App\Services\FetNet\LecturerWorkloadReport;
@@ -58,8 +59,12 @@ class LecturerWorkloadReportTest extends TestCase
         ]);
     }
 
-    /** Create a planned activity in $program for $semester teaching $subject, taught by $teachers. */
-    private function makeActivity(Program $program, Subject $subject, Semester $semester, array $teachers): Activity
+    /**
+     * Create a planned activity in $program for $semester teaching $subject, taught by
+     * $teachers (attachment order = pengampu order: first = P1, rest = P2). Optionally
+     * attach student groups ($classes) for the hover detail.
+     */
+    private function makeActivity(Program $program, Subject $subject, Semester $semester, array $teachers, array $classes = []): Activity
     {
         $planning = ActivityPlanning::firstOrCreate([
             'subject_id'  => $subject->id,
@@ -74,7 +79,14 @@ class LecturerWorkloadReportTest extends TestCase
             'active'      => true,
         ]);
 
-        $activity->teachers()->attach(collect($teachers)->pluck('id')->all());
+        // Attach one at a time so the pivot id order matches the given teacher order.
+        foreach ($teachers as $t) {
+            $activity->teachers()->attach($t->id);
+        }
+
+        foreach ($classes as $c) {
+            $activity->students()->attach($c->id);
+        }
 
         return $activity;
     }
@@ -98,8 +110,11 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertCount(1, $report['rows']);
         $row = $report['rows'][0];
         $this->assertSame('Alice', $row['name']);
-        $this->assertSame(3, $row['perProgram'][$program->id]);
-        $this->assertSame(3, $row['total']);
+        // Sole teacher = Pengampu 1; nothing as Pengampu 2.
+        $this->assertSame(3, $row['perProgram'][$program->id]['p1']);
+        $this->assertSame(0, $row['perProgram'][$program->id]['p2']);
+        $this->assertSame(3, $row['total']['p1']);
+        $this->assertSame(0, $row['total']['p2']);
     }
 
     public function test_empty_when_no_active_semester(): void
@@ -140,12 +155,13 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertContains('EE', $abbrevs);
 
         $row = collect($report['rows'])->firstWhere('name', 'Bob');
-        $this->assertSame(6, $row['perProgram'][$progA->id]); // per activity: 3 + 3
-        $this->assertSame(2, $row['perProgram'][$progB->id]); // cross-client, matched period
-        $this->assertSame(8, $row['total']);
+        $this->assertSame(6, $row['perProgram'][$progA->id]['p1']); // per activity: 3 + 3, sole teacher
+        $this->assertSame(2, $row['perProgram'][$progB->id]['p1']); // cross-client, matched period
+        $this->assertSame(8, $row['total']['p1']);
+        $this->assertSame(0, $row['total']['p2']);
     }
 
-    public function test_team_teaching_gives_full_credit_to_each_lecturer(): void
+    public function test_team_teaching_splits_credit_by_pengampu_order(): void
     {
         $client  = $this->makeClient();
         $prog    = $this->makeProgram($client, 'CS');
@@ -154,14 +170,47 @@ class LecturerWorkloadReportTest extends TestCase
         $t2      = Teacher::create(['program_id' => $prog->id, 'name' => 'Dave', 'code' => 'DAV']);
         $subject = $this->makeSubject($prog, 'CS101', 4);
 
-        $this->makeActivity($prog, $subject, $sem, [$t1, $t2]); // both teach the same activity
+        // Carol attached first -> Pengampu 1; Dave second -> Pengampu 2. Both full credit.
+        $this->makeActivity($prog, $subject, $sem, [$t1, $t2]);
 
         $report = app(LecturerWorkloadReport::class)->forClient($client, $sem->id);
 
         $carol = collect($report['rows'])->firstWhere('name', 'Carol');
         $dave  = collect($report['rows'])->firstWhere('name', 'Dave');
-        $this->assertSame(4, $carol['total']);
-        $this->assertSame(4, $dave['total']);
+
+        $this->assertSame(4, $carol['total']['p1']);
+        $this->assertSame(0, $carol['total']['p2']);
+        $this->assertSame(0, $dave['total']['p1']);
+        $this->assertSame(4, $dave['total']['p2']);
+    }
+
+    public function test_hover_detail_lists_subject_and_classes_per_role(): void
+    {
+        $client  = $this->makeClient();
+        $prog    = $this->makeProgram($client, 'CS');
+        $sem     = $this->makeSemester($client, 2024, 1);
+        $t1      = Teacher::create(['program_id' => $prog->id, 'name' => 'Carol', 'code' => 'CAR']);
+        $t2      = Teacher::create(['program_id' => $prog->id, 'name' => 'Dave', 'code' => 'DAV']);
+        $subject = $this->makeSubject($prog, 'CS101', 4);
+        $groupA  = Student::create(['program_id' => $prog->id, 'name' => 'Class A']);
+        $groupB  = Student::create(['program_id' => $prog->id, 'name' => 'Class B']);
+
+        $this->makeActivity($prog, $subject, $sem, [$t1, $t2], [$groupA, $groupB]);
+
+        $report = app(LecturerWorkloadReport::class)->forClient($client, $sem->id);
+
+        $carol = collect($report['rows'])->firstWhere('name', 'Carol');
+        // Carol is Pengampu 1 here: one detail entry with the subject + its classes.
+        $p1 = $carol['perProgram'][$prog->id]['p1Detail'];
+        $this->assertCount(1, $p1);
+        $this->assertSame('CS101', $p1[0]['code']);
+        $this->assertSame('CS101 Subject', $p1[0]['name']);
+        $this->assertEqualsCanonicalizing(['Class A', 'Class B'], $p1[0]['classes']);
+        $this->assertSame([], $carol['perProgram'][$prog->id]['p2Detail']);
+
+        $dave = collect($report['rows'])->firstWhere('name', 'Dave');
+        $this->assertSame([], $dave['perProgram'][$prog->id]['p1Detail']);
+        $this->assertCount(1, $dave['perProgram'][$prog->id]['p2Detail']);
     }
 
     public function test_excludes_other_periods_and_soft_deleted_activities(): void
@@ -185,7 +234,7 @@ class LecturerWorkloadReportTest extends TestCase
         $report = app(LecturerWorkloadReport::class)->forClient($client, $semOdd->id);
 
         $row = collect($report['rows'])->firstWhere('name', 'Erin');
-        $this->assertSame(3, $row['total']); // only the CS101 odd-period, non-deleted activity
+        $this->assertSame(3, $row['total']['p1']); // only the CS101 odd-period, non-deleted activity
     }
 
     public function test_for_program_rows_are_program_teachers_with_cross_prodi_columns(): void
@@ -222,9 +271,9 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertContains('EE', $abbrevs); // cross-prodi column
 
         $bob = collect($report['rows'])->firstWhere('name', 'Bob');
-        $this->assertSame(3, $bob['perProgram'][$progA->id]);
-        $this->assertSame(2, $bob['perProgram'][$progB->id]);
-        $this->assertSame(5, $bob['total']);
+        $this->assertSame(3, $bob['perProgram'][$progA->id]['p1']);
+        $this->assertSame(2, $bob['perProgram'][$progB->id]['p1']);
+        $this->assertSame(5, $bob['total']['p1']);
     }
 
     public function test_for_program_includes_guest_teachers_from_other_programs(): void
@@ -246,7 +295,7 @@ class LecturerWorkloadReportTest extends TestCase
         $this->assertContains('Guest', $names); // teaches in progA despite home = progB
 
         $row = collect($report['rows'])->firstWhere('name', 'Guest');
-        $this->assertSame(3, $row['perProgram'][$progA->id]);
-        $this->assertSame(3, $row['total']);
+        $this->assertSame(3, $row['perProgram'][$progA->id]['p1']);
+        $this->assertSame(3, $row['total']['p1']);
     }
 }

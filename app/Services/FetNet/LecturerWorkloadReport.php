@@ -64,12 +64,23 @@ class LecturerWorkloadReport
     }
 
     /**
-     * Core: cross-prodi SKS recap for a set of lecturers in the active period.
+     * Core: cross-prodi SKS recap for a set of lecturers in the active period, split by
+     * pengampu role. Per activity, the lecturer attached first (smallest pivot id) is
+     * Pengampu 1; everyone else on that activity is Pengampu 2. Both roles receive the
+     * full subject credit; the two totals are kept separate (the "P1-P2" cells). For each
+     * (lecturer, program, role) a detail list of {code, name, classes} backs the hover.
      *
      * @param  Collection<int, int>  $teacherIds
-     * @return array{programs: array<int, array{id:int, abbrev:string, name:string}>,
-     *               rows: array<int, array{teacher_id:int, name:string, code:?string,
-     *                                       perProgram: array<int,int>, total:int}>}
+     * @return array{
+     *   programs: array<int, array{id:int, abbrev:string, name:string}>,
+     *   rows: array<int, array{
+     *     teacher_id:int, name:string, code:?string,
+     *     perProgram: array<int, array{p1:int, p2:int,
+     *       p1Detail: array<int, array{code:?string,name:?string,classes:array<int,string>}>,
+     *       p2Detail: array<int, array{code:?string,name:?string,classes:array<int,string>}>}>,
+     *     total: array{p1:int, p2:int, p1Detail:array, p2Detail:array}
+     *   }>
+     * }
      */
     public function forTeacherIds(Collection $teacherIds, ?int $activeSemesterId): array
     {
@@ -81,27 +92,65 @@ class LecturerWorkloadReport
             return $empty;
         }
 
-        // One row per (activity, teacher): count each activity's subject credit.
-        // Team teaching = full credit to each teacher; a subject split into several
-        // activities is counted once per activity. distinct on the activity id guards
-        // against accidental duplicate teacher pivot rows.
+        // Every (activity, teacher) pivot row in the active period, ordered so the first
+        // teacher of each activity (smallest pivot id) comes first = Pengampu 1. Not
+        // filtered by $teacherIds so we can determine P1 even if it's a teacher we don't
+        // report on; we filter when accumulating below.
         $raw = DB::table('fetnet_activity as a')
             ->join('fetnet_activity_teacher as at', 'at.activity_id', '=', 'a.id')
             ->join('fetnet_activity_planning as ap', 'ap.id', '=', 'a.planning_id')
             ->join('fetnet_subject as s', 's.id', '=', 'ap.subject_id')
             ->whereIn('ap.semester_id', $periodSemesterIds)
-            ->whereIn('at.teacher_id', $teacherIds)
             ->whereNull('a.deleted_at')
             ->whereNull('ap.deleted_at')
-            ->distinct()
-            ->get(['a.id as activity_id', 'at.teacher_id', 'a.program_id', 's.credit']);
+            ->orderBy('a.id')
+            ->orderBy('at.id')
+            ->get(['a.id as activity_id', 'at.id as pivot_id', 'at.teacher_id',
+                   'a.program_id', 's.credit', 's.code', 's.name']);
 
-        $matrix     = []; // [teacher_id][program_id] => credit sum
-        $programIds = [];
+        if ($raw->isEmpty()) {
+            return $empty;
+        }
+
+        // First teacher (smallest pivot id) per activity = Pengampu 1; rows are ordered.
+        $firstTeacher = [];
         foreach ($raw as $r) {
-            $matrix[$r->teacher_id][$r->program_id] =
-                ($matrix[$r->teacher_id][$r->program_id] ?? 0) + (int) $r->credit;
-            $programIds[$r->program_id] = true;
+            if (! isset($firstTeacher[$r->activity_id])) {
+                $firstTeacher[$r->activity_id] = $r->teacher_id;
+            }
+        }
+
+        // Class (student group) names per activity, for the hover detail.
+        $classNames = DB::table('fetnet_activity_student as ast')
+            ->join('fetnet_student as st', 'st.id', '=', 'ast.student_id')
+            ->whereIn('ast.activity_id', array_keys($firstTeacher))
+            ->orderBy('st.name')
+            ->get(['ast.activity_id', 'st.name'])
+            ->groupBy('activity_id')
+            ->map(fn ($g) => $g->pluck('name')->values()->all());
+
+        $reportSet  = array_flip($teacherIds->all());
+        $matrix     = []; // [teacher_id][program_id]['p1'|'p2'] => credit sum
+        $details    = []; // [teacher_id][program_id]['p1'|'p2'] => list of {code,name,classes}
+        $programIds = [];
+
+        foreach ($raw as $r) {
+            if (! isset($reportSet[$r->teacher_id])) {
+                continue;
+            }
+            $role = $firstTeacher[$r->activity_id] === $r->teacher_id ? 'p1' : 'p2';
+            $pid  = $r->program_id;
+
+            $matrix[$r->teacher_id][$pid][$role] =
+                ($matrix[$r->teacher_id][$pid][$role] ?? 0) + (int) $r->credit;
+
+            $details[$r->teacher_id][$pid][$role][] = [
+                'code'    => $r->code,
+                'name'    => $r->name,
+                'classes' => $classNames->get($r->activity_id, []),
+            ];
+
+            $programIds[$pid] = true;
         }
 
         if (empty($matrix)) {
@@ -120,13 +169,37 @@ class LecturerWorkloadReport
         $rows = Teacher::whereIn('id', array_keys($matrix))
             ->orderBy('name')
             ->get(['id', 'name', 'code'])
-            ->map(fn ($t) => [
-                'teacher_id' => $t->id,
-                'name'       => $t->name,
-                'code'       => $t->code,
-                'perProgram' => $matrix[$t->id] ?? [],
-                'total'      => array_sum($matrix[$t->id] ?? []),
-            ])->values()->toArray();
+            ->map(function ($t) use ($matrix, $details) {
+                $perProgram = [];
+                $tp1 = 0; $tp2 = 0; $tp1d = []; $tp2d = [];
+
+                foreach ($matrix[$t->id] as $pid => $byRole) {
+                    $p1 = $byRole['p1'] ?? 0;
+                    $p2 = $byRole['p2'] ?? 0;
+                    $p1d = $details[$t->id][$pid]['p1'] ?? [];
+                    $p2d = $details[$t->id][$pid]['p2'] ?? [];
+
+                    $perProgram[$pid] = [
+                        'p1'       => $p1,
+                        'p2'       => $p2,
+                        'p1Detail' => $p1d,
+                        'p2Detail' => $p2d,
+                    ];
+
+                    $tp1  += $p1;
+                    $tp2  += $p2;
+                    $tp1d = array_merge($tp1d, $p1d);
+                    $tp2d = array_merge($tp2d, $p2d);
+                }
+
+                return [
+                    'teacher_id' => $t->id,
+                    'name'       => $t->name,
+                    'code'       => $t->code,
+                    'perProgram' => $perProgram,
+                    'total'      => ['p1' => $tp1, 'p2' => $tp2, 'p1Detail' => $tp1d, 'p2Detail' => $tp2d],
+                ];
+            })->values()->toArray();
 
         return ['programs' => $programs, 'rows' => $rows];
     }
