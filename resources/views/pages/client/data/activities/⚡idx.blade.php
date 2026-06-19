@@ -147,14 +147,21 @@ new #[Layout('layouts.client')] class extends Component
                     $item->program_abbrev = $programMap[$s->program_id] ?? '?',
                 ]));
 
-        $activities = Activity::with(['planning.subject', 'type', 'teachers', 'students', 'spaces.building'])
+        $activities = Activity::query()
+                ->select('fetnet_activity.*')
+                ->with(['planning.subject', 'type', 'teachers', 'students', 'spaces.building'])
                 ->withCount('spaces')
-                ->when(count($filterIds) && $this->view === 'all', fn($q) => $q->whereIn('program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
+                // Join the plan + subject so the All view sorts by semester then subject code
+                // (matching the By-Subject view) instead of by activity id.
+                ->join('fetnet_activity_planning as ap', 'ap.id', '=', 'fetnet_activity.planning_id')
+                ->join('fetnet_subject as s', 's.id', '=', 'ap.subject_id')
+                ->when(count($filterIds) && $this->view === 'all', fn($q) => $q->whereIn('fetnet_activity.program_id', $filterIds), fn($q) => $q->whereRaw('0=1'))
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)))
                 ->when($this->unassignedOnly, fn($q) => $q->whereDoesntHave('spaces'))
                 ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
                     fn($s) => $s->where('name', 'like', "%{$this->search}%")
                                 ->orWhere('code', 'like', "%{$this->search}%"))))
+                ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id')
                 ->paginate(6)
                 ->through(fn($a) => tap($a, fn($item) => [
                     $item->subject_nm     = $a->planning?->subject?->code . ' — ' . $a->planning?->subject?->name,
