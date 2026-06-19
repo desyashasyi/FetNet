@@ -13,6 +13,13 @@ use Livewire\Attributes\Reactive;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
+/**
+ * Shared teacher time-constraint editor sheet (used by program + client time pages),
+ * reactive on programId / constraintType / target. For 'not_available' it shows a
+ * day×hour blocked-slots grid plus a weight; for numeric/tag constraints it shows a value
+ * + weight form (with tag/interval pickers as the type requires). Persists to
+ * TeacherConstraint / TeacherTimeConstraint and broadcasts 'constraint-changed'.
+ */
 new class extends Component
 {
     use Toast;
@@ -35,16 +42,19 @@ new class extends Component
 
     // ── Static labels ─────────────────────────────────────────────────────────
 
+    /** Constraint types that take a single activity tag. */
     private static function tagConstraints(): array
     {
         return ['max_hours_daily_tag', 'min_hours_daily_tag', 'max_hours_continuously_tag'];
     }
 
+    /** Constraint types that take two activity tags. */
     private static function dualTagConstraints(): array
     {
         return ['min_gaps_between_activity_tags'];
     }
 
+    /** Human labels for every supported teacher constraint type. */
     private static function constraintLabels(): array
     {
         return [
@@ -68,12 +78,14 @@ new class extends Component
 
     // ── Computed: program-derived data ────────────────────────────────────────
 
+    /** The program this sheet operates on. */
     #[Computed]
     public function program(): ?Program
     {
         return $this->programId ? Program::find($this->programId) : null;
     }
 
+    /** The relevant client's scheduling config (day/hour layout). */
     #[Computed]
     public function config()
     {
@@ -87,6 +99,7 @@ new class extends Component
         return $client?->config;
     }
 
+    /** Activity-tag options for tag-based constraints. */
     #[Computed]
     public function tagOptions(): array
     {
@@ -96,6 +109,7 @@ new class extends Component
             ->values()->toArray();
     }
 
+    /** Bookable slot options (for the hourly-interval constraint pickers). */
     #[Computed]
     public function slotOptions(): array
     {
@@ -107,6 +121,7 @@ new class extends Component
 
     // ── Lifecycle / hooks ─────────────────────────────────────────────────────
 
+    /** Reload the blocked grid + weight when the picked teacher changes (not-available). */
     public function updatedTeacherId(): void
     {
         if ($this->constraintType === 'not_available') {
@@ -115,6 +130,7 @@ new class extends Component
         }
     }
 
+    /** Search the teacher picker across the cluster (and guests, suffixed "(guest)"). */
     public function searchTeachers(string $value = ''): void
     {
         if (! $this->programId) { $this->teacherOptions = []; return; }
@@ -152,6 +168,7 @@ new class extends Component
 
     // ── Open from parent events ───────────────────────────────────────────────
 
+    /** Open to add a constraint; for a teacher target, preselect the first teacher. */
     #[On('open-constraint-add')]
     public function openAdd(): void
     {
@@ -174,6 +191,7 @@ new class extends Component
         $this->modal = true;
     }
 
+    /** Open to edit an existing numeric/tag constraint by id. */
     #[On('open-constraint-edit')]
     public function openEdit(int $id): void
     {
@@ -191,6 +209,7 @@ new class extends Component
         $this->modal             = true;
     }
 
+    /** Open the not-available grid for a specific teacher. */
     #[On('open-not-available-edit')]
     public function openNotAvailable(int $teacherId): void
     {
@@ -204,6 +223,7 @@ new class extends Component
 
     // ── Not-available grid state ──────────────────────────────────────────────
 
+    /** Load the teacher's blocked cells into $blocked keyed "day-hour". */
     private function loadBlocked(): void
     {
         if (! $this->teacherId) { $this->blocked = []; return; }
@@ -214,6 +234,7 @@ new class extends Component
             ->toArray();
     }
 
+    /** Load the saved weight for this teacher's not-available constraint (default 100). */
     private function loadNotAvailableWeight(): void
     {
         $program = $this->program;
@@ -227,6 +248,7 @@ new class extends Component
         $this->constraintWeight = $row ? (float) $row->weight : 100.0;
     }
 
+    /** Toggle one day/hour cell for the teacher; broadcasts 'constraint-changed'. */
     public function toggle(int $day, int $hour): void
     {
         if (! $this->teacherId) return;
@@ -245,6 +267,7 @@ new class extends Component
         $this->dispatch('constraint-changed');
     }
 
+    /** Toggle a whole day for the teacher (block all hours, or clear if all blocked). */
     public function toggleDay(int $day): void
     {
         if (! $this->teacherId) return;
