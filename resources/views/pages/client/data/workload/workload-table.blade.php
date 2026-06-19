@@ -4,9 +4,10 @@ use Livewire\Component;
 
 /**
  * Lecturer workload table (shared by the client + program workload pages). Each program
- * column and the Total column show the lecturer's load split as "Pengampu 1 - Pengampu 2"
- * (e.g. 23-12). Each number hovers to reveal the contributing subjects + classes, like
- * the not-available constraint summaries.
+ * column and the Total column show the lecturer's load as "Pengampu 1 - Pengampu 2 (sum)"
+ * (e.g. 23-5 (28)). The P1 and P2 numbers hover to reveal the contributing subjects +
+ * classes (like the not-available constraint summaries); the combined total in parentheses
+ * is plain text with no hover.
  */
 new class extends Component
 {
@@ -100,6 +101,9 @@ new class extends Component
                                             <span class="{{ $n['v'] > 0 ? $n['cls'] : 'text-base-content/20' }}">{{ $n['v'] }}</span>
                                         @endif
                                     @endforeach
+
+                                    {{-- Combined total (P1+P2), plain text, no hover. --}}
+                                    <span class="text-base-content/40 ml-1">({{ $cell['p1'] + $cell['p2'] }})</span>
                                 </div>
                             </td>
                         @endforeach
