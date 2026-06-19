@@ -4,11 +4,12 @@ use App\Models\FetNet\FetCompile;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Reactive;
 use Livewire\Component;
+use Livewire\WithPagination;
 use Mary\Traits\Toast;
 
 new class extends Component
 {
-    use Toast;
+    use Toast, WithPagination;
 
     #[Reactive] public ?int $clientId   = null;
     #[Reactive] public ?int $semesterId = null;
@@ -34,11 +35,13 @@ new class extends Component
     #[Computed]
     public function compiles()
     {
-        if (! $this->clientId) return collect();
+        if (! $this->clientId) {
+            return new \Illuminate\Pagination\LengthAwarePaginator([], 0, 10);
+        }
         return FetCompile::with(['semester:id,name,semester', 'user:id,name'])
             ->where('client_id', $this->clientId)
             ->when($this->semesterId, fn($q) => $q->where('semester_id', $this->semesterId))
-            ->orderByDesc('id')->limit(20)->get();
+            ->orderByDesc('id')->paginate(10);
     }
 
     #[Computed]
@@ -129,6 +132,12 @@ new class extends Component
                     </tbody>
                 </table>
             </div>
+
+            @if($this->compiles->hasPages())
+                <div class="mt-3">
+                    {{ $this->compiles->links() }}
+                </div>
+            @endif
         @endif
     </x-card>
 </div>
