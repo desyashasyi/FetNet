@@ -57,67 +57,67 @@ help:
 
 ## 💻 Start the DEV environment (with override). --build ensures entrypoint/Dockerfile changes ter-pakai.
 up:
-	docker-compose -f docker-compose.yml -f $(DEV_COMPOSE) up -d --build
+	docker compose -f docker-compose.yml -f $(DEV_COMPOSE) up -d --build
 
 ## 💻 Start the PROD environment (without override)
 prod:
-	docker-compose -f docker-compose.yml up -d --build
+	docker compose -f docker-compose.yml up -d --build
 
 ## 🛑 Stop all running containers
 stop:
-	docker-compose stop
+	docker compose stop
 
 ## 🗑 Remove all containers and volumes
 down:
-	docker-compose down -v
+	docker compose down -v
 
 ## 🔄 Restart all containers
 restart:
-	docker-compose restart
+	docker compose restart
 
 ## 🔄 Restart a specific container (usage: make restart-container CONTAINER=nginx)
 restart-container:
-	docker-compose restart $(CONTAINER)
+	docker compose restart $(CONTAINER)
 
 ## 🛑 Stop a specific container (usage: make stop-container CONTAINER=postgres)
 stop-container:
-	docker-compose stop $(CONTAINER)
+	docker compose stop $(CONTAINER)
 
 ## 🎭 Run PHP inside the app container (usage: make php -v)
 php:
-	docker-compose exec -u www-data $(APP_CONTAINER) php $(filter-out $@,$(MAKECMDGOALS))
+	docker compose exec -u www-data $(APP_CONTAINER) php $(filter-out $@,$(MAKECMDGOALS))
 
 ## 🎭 Run an Artisan command (usage: make artisan migrate)
 artisan:
-	docker-compose exec -u www-data $(APP_CONTAINER) php artisan $(filter-out $@,$(MAKECMDGOALS))
+	docker compose exec -u www-data $(APP_CONTAINER) php artisan $(filter-out $@,$(MAKECMDGOALS))
 
 ## 🎼 Run a Composer command (usage: make composer install)
 composer:
-	docker-compose exec -u www-data $(APP_CONTAINER) composer $(filter-out $@,$(MAKECMDGOALS))
+	docker compose exec -u www-data $(APP_CONTAINER) composer $(filter-out $@,$(MAKECMDGOALS))
 
 ## 🎸 Run an NPM command (usage: make npm run dev)
 npm:
-	docker-compose exec -u www-data $(APP_CONTAINER) npm $(filter-out $@,$(MAKECMDGOALS))
+	docker compose exec -u www-data $(APP_CONTAINER) npm $(filter-out $@,$(MAKECMDGOALS))
 
 ## 🖥 Open a bash shell inside the app container
 bash:
-	docker-compose exec -u www-data $(APP_CONTAINER) bash
+	docker compose exec -u www-data $(APP_CONTAINER) bash
 
 ## 📜 View logs of a specific container (usage: make logs nginx)
 logs:
-	docker-compose logs -f $(filter-out $@,$(MAKECMDGOALS))
+	docker compose logs -f $(filter-out $@,$(MAKECMDGOALS))
 
 ## 🐘 Open PostgreSQL shell with credentials from .env
 psql:
-	docker-compose exec -e PGPASSWORD=$(POSTGRES_PASSWORD) $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+	docker compose exec -e PGPASSWORD=$(POSTGRES_PASSWORD) $(POSTGRES_CONTAINER) psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 ## 🔥 Open Redis CLI inside the Redis container
 redis:
-	docker-compose exec $(REDIS_CONTAINER) redis-cli
+	docker compose exec $(REDIS_CONTAINER) redis-cli
 
 ## 🧪 Run PHPUnit tests
 test:
-	docker-compose exec -u www-data $(APP_CONTAINER) php artisan test
+	docker compose exec -u www-data $(APP_CONTAINER) php artisan test
 
 ## Fix for make to avoid creating unnecessary files
 %:
