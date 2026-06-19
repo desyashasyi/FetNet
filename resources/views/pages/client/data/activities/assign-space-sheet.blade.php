@@ -82,7 +82,7 @@ new class extends Component
             ->map(fn($b) => ['id' => $b->id, 'name' => $b->code ? "{$b->code} {$b->name}" : $b->name])
             ->toArray();
 
-        $this->typeOptions = SpaceType::where('is_theory', false)->orderBy('name')
+        $this->typeOptions = SpaceType::orderBy('name')
             ->get(['id', 'name', 'code'])
             ->map(fn($t) => ['id' => $t->id, 'name' => $t->code ? "[{$t->code}] {$t->name}" : $t->name])
             ->toArray();
@@ -134,8 +134,6 @@ new class extends Component
         $client = Client::where('user_id', auth()->id())->first();
 
         $newIds = Space::where('client_id', $client?->id)
-            ->where(fn($q) => $q->whereNull('type_id')
-                ->orWhereHas('type', fn($q2) => $q2->where('is_theory', false)))
             ->when($this->buildingFilter, fn($q) => $q->where('building_id', $this->buildingFilter))
             ->when($this->typeFilter,     fn($q) => $q->where('type_id', $this->typeFilter))
             ->when($this->capacityFilter, function ($q) {
@@ -164,8 +162,6 @@ new class extends Component
         $query = $this->modal
             ? Space::with(['building:id,name,code'])->withCount('activities')
                 ->where('client_id', $client?->id)
-                ->where(fn($q) => $q->whereNull('type_id')
-                    ->orWhereHas('type', fn($q2) => $q2->where('is_theory', false)))
                 ->when($this->buildingFilter, fn($q) => $q->where('building_id', $this->buildingFilter))
                 ->when($this->typeFilter,     fn($q) => $q->where('type_id', $this->typeFilter))
                 ->when($this->capacityFilter, function ($q) {
