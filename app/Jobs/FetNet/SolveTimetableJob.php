@@ -62,7 +62,9 @@ class SolveTimetableJob implements ShouldQueue
                 'solver_status'  => 'failed',
                 'solver_message' => 'Failed to start fet-cl: ' . $e->getMessage(),
             ]);
-            broadcast(new SolverFinishedEvent($this->compileId, 'failed', $e->getMessage()));
+            try {
+                broadcast(new SolverFinishedEvent($this->compileId, 'failed', $e->getMessage()));
+            } catch (Throwable) {}
             return;
         }
 
@@ -85,7 +87,9 @@ class SolveTimetableJob implements ShouldQueue
             if (empty($buffer)) return;
             $now = microtime(true);
             if (! $force && ($now - $lastFlush) < self::FLUSH_INTERVAL_SECONDS) return;
-            broadcast(new SolverLogEvent($this->compileId, $buffer));
+            try {
+                broadcast(new SolverLogEvent($this->compileId, $buffer));
+            } catch (Throwable) {}
             $buffer    = [];
             $lastFlush = $now;
         };
@@ -145,7 +149,9 @@ class SolveTimetableJob implements ShouldQueue
             'solver_message'     => $message,
         ]);
 
-        broadcast(new SolverFinishedEvent($this->compileId, $status, $message, $resultPath));
+        try {
+            broadcast(new SolverFinishedEvent($this->compileId, $status, $message, $resultPath));
+        } catch (Throwable) {}
     }
 
     private function upsertSlotsFromResult(FetCompile $compile, string $resultRel): void
@@ -202,6 +208,8 @@ class SolveTimetableJob implements ShouldQueue
             'solver_finished_at' => now(),
             'solver_pid'         => null,
         ]);
-        broadcast(new SolverFinishedEvent($this->compileId, 'failed', 'Worker crash: ' . $e->getMessage()));
+        try {
+            broadcast(new SolverFinishedEvent($this->compileId, 'failed', 'Worker crash: ' . $e->getMessage()));
+        } catch (Throwable) {}
     }
 }

@@ -53,9 +53,13 @@ class CompileFetJob implements ShouldQueue
                 'message'     => 'Compile completed.',
             ]);
 
-            broadcast(new FetCompiledEvent(
-                $this->clientId, $path, 'success', 'Compile completed.', $record->id
-            ));
+            try {
+                broadcast(new FetCompiledEvent(
+                    $this->clientId, $path, 'success', 'Compile completed.', $record->id
+                ));
+            } catch (Throwable) {
+                // broadcast failure must not invalidate a successful compile
+            }
         } catch (Throwable $e) {
             $record->update([
                 'status'      => 'failed',
@@ -63,9 +67,13 @@ class CompileFetJob implements ShouldQueue
                 'duration_ms' => (int) ((hrtime(true) - $start) / 1_000_000),
             ]);
 
-            broadcast(new FetCompiledEvent(
-                $this->clientId, null, 'failed', $e->getMessage(), $record->id
-            ));
+            try {
+                broadcast(new FetCompiledEvent(
+                    $this->clientId, null, 'failed', $e->getMessage(), $record->id
+                ));
+            } catch (Throwable) {
+                // broadcast failure must not mask the real compile error
+            }
         }
     }
 
@@ -77,8 +85,12 @@ class CompileFetJob implements ShouldQueue
             ->orderByDesc('id')->limit(1)
             ->update(['status' => 'failed', 'message' => 'Worker crash: ' . $e->getMessage()]);
 
-        broadcast(new FetCompiledEvent(
-            $this->clientId, null, 'failed', 'Worker crash: ' . $e->getMessage()
-        ));
+        try {
+            broadcast(new FetCompiledEvent(
+                $this->clientId, null, 'failed', 'Worker crash: ' . $e->getMessage()
+            ));
+        } catch (Throwable) {
+            // best-effort only
+        }
     }
 }
