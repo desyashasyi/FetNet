@@ -197,10 +197,10 @@ new class extends Component {
     }
 
     /**
-     * Live search for the Student Groups picker. Returns only non-root nodes (groups
-     * and sub-groups) of this program's student hierarchy, each labelled with its full
-     * "batch / group / sub-group" path. Limit is high (500) so deep sub-groups aren't
-     * truncated out of the list.
+     * Live search for the Student Groups picker. Returns every node of this program's
+     * student hierarchy — including root batches (selectable as a whole-year student set)
+     * plus groups and sub-groups — each labelled with its full "batch / group / sub-group"
+     * path. Limit is high (500) so deep sub-groups aren't truncated out of the list.
      */
     public function searchStudents(string $value = ""): void
     {
@@ -211,13 +211,14 @@ new class extends Component {
         }
         $selected = $this->studentIds;
 
-        $query = Student::where("program_id", $program->id)->whereNotNull("parent_id");
+        $query = Student::where("program_id", $program->id);
 
-        // Scope to the chosen batch (its groups + sub-groups); already-selected nodes stay
-        // visible so their labels still render even if they belong to another batch.
+        // Scope to the chosen batch: the batch root itself + its groups/sub-groups.
+        // Already-selected nodes stay visible so their labels still render even if they
+        // belong to another batch.
         if ($this->batchFilter) {
-            $descendants = $this->batchDescendantIds($this->batchFilter);
-            $query->where(fn($q) => $q->whereIn("id", $descendants)->orWhereIn("id", $selected));
+            $allowed = array_merge([$this->batchFilter], $this->batchDescendantIds($this->batchFilter));
+            $query->where(fn($q) => $q->whereIn("id", $allowed)->orWhereIn("id", $selected));
         }
 
         $this->studentOptions = $query
