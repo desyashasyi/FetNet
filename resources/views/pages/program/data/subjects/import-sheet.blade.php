@@ -1,47 +1,31 @@
 <?php
 
 use App\Exports\FetNet\SubjectsTemplateExport;
-use App\Jobs\FetNet\SubjectsImportJob;
+use App\Imports\FetNet\SubjectImport;
 use App\Models\FetNet\Program;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Maatwebsite\Excel\Facades\Excel;
 use Mary\Traits\Toast;
 
 /**
- * Subject import sheet: upload an .xlsx/.xls, queue a SubjectsImportJob, and react to
- * the broadcast SubjectsImportEvent (toast + refresh the listing/options). Also serves a
- * downloadable template. See [[fetnet-job-events]].
+ * Subject import sheet: upload an .xlsx/.xls and import it synchronously via SubjectImport,
+ * then toast the imported/skipped summary and refresh the listing/options in the same
+ * request. Runs inline (not queued) so the success alert + refresh do not depend on a
+ * realtime broadcast being delivered. Also serves a downloadable template.
  */
 new class extends Component
 {
     use WithFileUploads, Toast;
 
     public bool  $modal      = false;
-    public bool  $importing  = false;
     public mixed $importFile = null;
 
     /** The signed-in user's program (import target). */
     private function program(): ?Program
     {
         return Program::where('user_id', auth()->id())->first();
-    }
-
-    /** Listen for the import-finished broadcast. */
-    public function getListeners(): array
-    {
-        return ['echo:subjects-import,.SubjectsImportEvent' => 'onImportDone'];
-    }
-
-    /** On import finish: toast the result and refresh the subjects list + options. */
-    public function onImportDone(array $event): void
-    {
-        $this->importing = false;
-        ($event['status'] ?? '') === 'success'
-            ? $this->success($event['message'], position: 'toast-top toast-center')
-            : $this->error($event['message'],   position: 'toast-top toast-center');
-        $this->dispatch('subject-changed');
-        $this->dispatch('refresh-subject-options');
     }
 
     /** Open the import sheet (clears any previous file). */
@@ -58,7 +42,7 @@ new class extends Component
         return \Maatwebsite\Excel\Facades\Excel::download(new SubjectsTemplateExport(), 'subjects_template.xlsx');
     }
 
-    /** Validate + store the upload and dispatch the queued import job. */
+    /** Validate the upload, import it synchronously, then toast the result and refresh. */
     public function import(): void
     {
         $this->validate(['importFile' => 'required|file|mimes:xlsx,xls|max:5120']);
@@ -66,20 +50,23 @@ new class extends Component
         $program = $this->program();
         if (! $program) { $this->error('Program not found.', position: 'toast-top toast-center'); return; }
 
-        $ext      = $this->importFile->getClientOriginalExtension();
-        $filename = 'subjects_' . uniqid() . '.' . $ext;
-        $destDir  = storage_path('app/imports/subjects');
-        $destPath = $destDir . '/' . $filename;
-
-        if (! is_dir($destDir)) mkdir($destDir, 0775, true);
-        copy($this->importFile->getRealPath(), $destPath);
-
-        SubjectsImportJob::dispatch($destPath, $program->id);
+        try {
+            $importer = new SubjectImport($program->id);
+            Excel::import($importer, $this->importFile->getRealPath());
+        } catch (\Throwable $e) {
+            $this->reset('importFile');
+            $this->error('Import failed: ' . $e->getMessage(), position: 'toast-top toast-center');
+            return;
+        }
 
         $this->reset('importFile');
-        $this->modal     = false;
-        $this->importing = true;
-        $this->info('Import queued. You will be notified when done.', position: 'toast-top toast-center');
+        $this->modal = false;
+        $this->success(
+            "Import done: {$importer->imported} imported, {$importer->skipped} skipped.",
+            position: 'toast-top toast-center',
+        );
+        $this->dispatch('subject-changed');
+        $this->dispatch('refresh-subject-options');
     }
 }; ?>
 
