@@ -56,13 +56,15 @@ class TeacherNotAvailablePaginationTest extends TestCase
             ->assertViewHas('lastPage', 1);
     }
 
-    public function test_search_filters_by_teacher_name_and_resets_page(): void
+    public function test_search_filters_by_teacher_name(): void
     {
-        $c = Livewire::test(self::COMPONENT, ['rows' => $this->rows(23), 'numberOfDays' => 5])
-            ->call('nextPage', 3)->assertSet('page', 2)
-            ->set('search', 'Teacher 17');
+        $c = Livewire::test(self::COMPONENT, [
+            'rows'         => $this->rows(23),
+            'numberOfDays' => 5,
+            'search'       => 'Teacher 17',
+        ]);
 
-        $c->assertSet('page', 1)->assertViewHas('total', 1);
+        $c->assertViewHas('total', 1)->assertViewHas('lastPage', 1);
         $this->assertSame('[T17] Teacher 17', $c->viewData('pageRows')[0]['teacher']);
     }
 }

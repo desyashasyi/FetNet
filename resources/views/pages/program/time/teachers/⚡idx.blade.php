@@ -26,6 +26,8 @@ new #[Layout('layouts.program')] class extends Component
 
     public ?string $constraintType = null;
     public string  $target         = 'teacher';
+    /** Teacher-name search for the not-available table (lives in the filter row). */
+    public string  $teacherSearch  = '';
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -242,6 +244,10 @@ new #[Layout('layouts.program')] class extends Component
         @if($constraintType && $constraintType !== 'not_available')
             <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="openAddConstraint" />
         @endif
+        @if($constraintType === 'not_available')
+            <x-input placeholder="Search teacher..." wire:model.live.debounce="teacherSearch"
+                     icon="o-magnifying-glass" clearable class="w-56" />
+        @endif
     </div>
 
     @if($numberOfDays === 0 || $numberOfHours === 0)
@@ -266,6 +272,7 @@ new #[Layout('layouts.program')] class extends Component
                 :day-labels="$dayLabels"
                 :slot-labels="$slotLabels"
                 :number-of-days="$numberOfDays"
+                :search="$teacherSearch"
                 :show-program-col="false"
                 :can-edit="true" />
         @endif
