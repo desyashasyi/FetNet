@@ -12,9 +12,32 @@ new class extends Component
     #[Reactive] public bool  $showProgramCol = false;
     #[Reactive] public bool  $canEdit        = false;
 
+    /** Current page for the in-memory teacher pager (10 per page). */
+    public int $page = 1;
+
+    private const PER_PAGE = 10;
+
+    public function prevPage(): void { if ($this->page > 1) $this->page--; }
+    public function nextPage(int $lastPage): void { if ($this->page < $lastPage) $this->page++; }
+
     public function edit(int $teacherId): void
     {
         $this->dispatch('open-not-available-edit', teacherId: $teacherId);
+    }
+
+    /** Sort teachers alphabetically and slice to the current page (10 per page). */
+    public function with(): array
+    {
+        $sorted = collect($this->rows)
+            ->sortBy(fn($r) => mb_strtolower($r['teacher'] ?? ''), SORT_NATURAL)
+            ->values();
+
+        $total    = $sorted->count();
+        $lastPage = $total > 0 ? (int) ceil($total / self::PER_PAGE) : 1;
+        $page     = max(1, min($this->page, $lastPage));
+        $pageRows = $sorted->slice(($page - 1) * self::PER_PAGE, self::PER_PAGE)->values()->all();
+
+        return compact('pageRows', 'total', 'lastPage', 'page');
     }
 }; ?>
 
@@ -33,7 +56,7 @@ new class extends Component
                 </tr>
             </thead>
             <tbody>
-                @foreach($rows as $row)
+                @foreach($pageRows as $row)
                     <tr wire:key="narow-{{ $row['id'] }}" class="border-b border-base-100 hover:bg-base-300/40">
                         <td class="py-2">{{ $row['teacher'] }}</td>
                         @if($showProgramCol)
@@ -109,5 +132,18 @@ new class extends Component
                 @endforeach
             </tbody>
         </table>
+
+        @if($lastPage > 1)
+            <div class="flex items-center justify-between mt-3">
+                <span class="text-sm text-base-content/40">{{ $total }} teachers</span>
+                <div class="join">
+                    <x-button class="btn-sm join-item" icon="o-chevron-left"
+                              wire:click="prevPage" :disabled="$page <= 1" />
+                    <span class="join-item btn btn-sm btn-ghost pointer-events-none">{{ $page }} / {{ $lastPage }}</span>
+                    <x-button class="btn-sm join-item" icon="o-chevron-right"
+                              wire:click="nextPage({{ $lastPage }})" :disabled="$page >= $lastPage" />
+                </div>
+            </div>
+        @endif
     </x-card>
 </div>
