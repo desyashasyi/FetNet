@@ -406,12 +406,22 @@ new #[Layout('layouts.print')] class extends Component
                 </tr>
             </thead>
             <tbody>
+                {{-- Tracks, per day column, how many following hour rows are already covered
+                     by a multi-hour activity's rowspan so they are not rendered again. --}}
+                @php($rowspanSkip = array_fill(0, count($this->dayLabels), 0))
                 @foreach($this->hourLabels as $hIdx => $hour)
                     <tr class="align-top">
                         <td class="font-mono bg-base-200/50 text-sm">{{ $hour }}</td>
                         @foreach($this->dayLabels as $dIdx => $day)
+                            @if(($rowspanSkip[$dIdx] ?? 0) > 0)
+                                @php($rowspanSkip[$dIdx]--)
+                                @continue
+                            @endif
                             @php($cell = $this->gridIndex[$dIdx + 1][$hIdx + 1] ?? [])
-                            <td class="border border-base-300 p-1.5 align-top">
+                            @php($span = collect($cell)->max('duration') ?: 1)
+                            @php($span = max(1, min((int) $span, count($this->hourLabels) - $hIdx)))
+                            @if($span > 1) @php($rowspanSkip[$dIdx] = $span - 1) @endif
+                            <td class="border border-base-300 p-1.5 align-top" @if($span > 1) rowspan="{{ $span }}" @endif>
                                 @foreach($cell as $slot)
                                     <div class="bg-primary/10 border-l-4 rounded px-2 py-1.5 mb-1 leading-snug
                                                 {{ $slot->locked ? 'border-warning bg-warning/10' : 'border-primary' }}">

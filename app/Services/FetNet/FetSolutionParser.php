@@ -21,6 +21,7 @@ class FetSolutionParser
      *   activity_id:int,
      *   day_index:?int,
      *   hour_index:?int,
+     *   duration:int,
      *   room_id:?int,
      * }>
      */
@@ -50,6 +51,15 @@ class FetSolutionParser
         $dayIndex  = $fetSource ? $this->buildPositionIndex($fetSource->Days_List?->Day ?? null, 'Name') : [];
         $hourIndex = $fetSource ? $this->buildPositionIndex($fetSource->Hours_List?->Hour ?? null, 'Name') : [];
 
+        // emitId -> duration (hours) from the source Activities_List. The solution
+        // (*_activities.xml) only carries the start Day/Hour, so the span comes from here.
+        $durByEmit = [];
+        if ($fetSource && $fetSource->Activities_List) {
+            foreach ($fetSource->Activities_List->Activity as $def) {
+                $durByEmit[(int) $def->Id] = max(1, (int) $def->Duration);
+            }
+        }
+
         $rooms = Space::where('client_id', $clientId)->get(['id', 'code', 'name']);
         $roomByLabel = [];
         foreach ($rooms as $r) {
@@ -74,6 +84,7 @@ class FetSolutionParser
                 'activity_id' => $dbId,
                 'day_index'   => $dayIndex[$dayName]   ?? null,
                 'hour_index'  => $hourIndex[$hourName] ?? null,
+                'duration'    => $durByEmit[$emitId]   ?? 1,
                 'room_id'     => $roomName !== '' ? ($roomByLabel[$roomName] ?? null) : null,
             ];
         }
