@@ -25,6 +25,8 @@ new #[Layout('layouts.client')] class extends Component
     public bool   $unassignedOnly  = false;
     /** Quick "study programs that still need space" picker (program id). */
     public ?int   $unassignedProgramId = null;
+    /** Filter by the subject's curriculum semester (1–8), independent of the academic period. */
+    public ?int   $subjectSemester = null;
 
     public array $headers = [
         ['key' => 'semester', 'label' => 'Sem',     'class' => 'w-1/12 text-center align-top'],
@@ -68,6 +70,7 @@ new #[Layout('layouts.client')] class extends Component
     public function updatedFilterProgramId(): void { $this->resetPage(); }
     public function updatedSearch(): void          { $this->resetPage(); }
     public function updatedView(): void            { $this->resetPage(); }
+    public function updatedSubjectSemester(): void { $this->resetPage(); }
 
     /** Toggle the "not yet plotted" filter; viewing them only makes sense in the list view. */
     public function toggleUnassigned(): void
@@ -141,6 +144,7 @@ new #[Layout('layouts.client')] class extends Component
                 ->when($this->search, fn($q) => $q
                     ->where('name', 'like', "%{$this->search}%")
                     ->orWhere('code', 'like', "%{$this->search}%"))
+                ->when($this->subjectSemester, fn($q) => $q->where('semester', $this->subjectSemester))
                 ->orderBy('semester')->orderBy('code')
                 ->paginate(6)
                 ->through(fn($s) => tap($s, fn($item) => [
@@ -161,6 +165,7 @@ new #[Layout('layouts.client')] class extends Component
                 ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
                     fn($s) => $s->where('name', 'like', "%{$this->search}%")
                                 ->orWhere('code', 'like', "%{$this->search}%"))))
+                ->when($this->subjectSemester, fn($q) => $q->where('s.semester', $this->subjectSemester))
                 ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id')
                 ->paginate(6)
                 ->through(fn($a) => tap($a, fn($item) => [
@@ -175,7 +180,13 @@ new #[Layout('layouts.client')] class extends Component
                     ])->toArray(),
                 ]));
 
-        return compact('subjects', 'activities', 'unassignedTotal', 'unassignedProgramOptions');
+        // Distinct curriculum semesters present in the client's subjects (1–8).
+        $subjectSemesterOptions = Subject::whereIn('program_id', $programIds)
+            ->whereNotNull('semester')
+            ->distinct()->orderBy('semester')->pluck('semester')
+            ->map(fn($s) => ['id' => $s, 'name' => "Semester {$s}"])->values()->toArray();
+
+        return compact('subjects', 'activities', 'unassignedTotal', 'unassignedProgramOptions', 'subjectSemesterOptions');
     }
 }; ?>
 
@@ -194,6 +205,10 @@ new #[Layout('layouts.client')] class extends Component
         <x-choices single searchable wire:model.live="filterProgramId"
                    :options="$programOptions" placeholder="— All Programs —"
                    clearable class="w-max min-w-48" />
+        @if(count($subjectSemesterOptions))
+            <x-choices single wire:model.live="subjectSemester" :options="$subjectSemesterOptions"
+                       placeholder="Course Semester" clearable class="w-44" />
+        @endif
         <x-input placeholder="Search subject..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
         <div class="join">
             <x-button label="By Subject" class="btn-sm join-item {{ $view === 'subject' ? 'btn-primary' : 'btn-ghost' }}"
