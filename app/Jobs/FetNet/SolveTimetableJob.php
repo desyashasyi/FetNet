@@ -193,6 +193,7 @@ class SolveTimetableJob implements ShouldQueue
 
             $slot->day_index      = $row['day_index'];
             $slot->hour_index     = $row['hour_index'];
+            $slot->duration       = $row['duration'] ?? 1;
             $slot->room_id        = $row['room_id'];
             $slot->weight_percent = 100;
             // Default new slots to unlocked; never overwrite a user's existing manual lock.
