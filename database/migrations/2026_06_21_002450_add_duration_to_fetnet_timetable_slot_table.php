@@ -13,9 +13,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('fetnet_timetable_slot', function (Blueprint $table) {
-            $table->unsignedSmallInteger('duration')->default(1)->after('hour_index');
-        });
+        // Idempotent: the server may have already added this column via an earlier,
+        // since-removed migration. Only add it if missing; the backfill still runs.
+        if (! Schema::hasColumn('fetnet_timetable_slot', 'duration')) {
+            Schema::table('fetnet_timetable_slot', function (Blueprint $table) {
+                $table->unsignedSmallInteger('duration')->default(1)->after('hour_index');
+            });
+        }
 
         // Backfill existing slots from their activity's duration so spans are correct
         // without forcing a re-generate. Split activities (with sub-activities) keep the
@@ -33,8 +37,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('fetnet_timetable_slot', function (Blueprint $table) {
-            $table->dropColumn('duration');
-        });
+        if (Schema::hasColumn('fetnet_timetable_slot', 'duration')) {
+            Schema::table('fetnet_timetable_slot', function (Blueprint $table) {
+                $table->dropColumn('duration');
+            });
+        }
     }
 };
