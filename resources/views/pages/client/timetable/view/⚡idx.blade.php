@@ -419,7 +419,6 @@ new #[Layout('layouts.print')] class extends Component
         <table class="table border-collapse w-full table-fixed">
             <thead>
                 <tr class="text-base-content/70 text-sm">
-                    <th class="w-20 bg-base-200">Hour</th>
                     @foreach($this->dayLabels as $day)
                         <th class="bg-base-200 text-center text-base font-semibold">{{ $day }}</th>
                     @endforeach
@@ -431,7 +430,6 @@ new #[Layout('layouts.print')] class extends Component
                 @php($rowspanSkip = array_fill(0, count($this->dayLabels), 0))
                 @foreach($this->hourLabels as $hIdx => $hour)
                     <tr class="align-top">
-                        <td class="font-mono bg-base-200/50 text-sm">{{ $hour }}</td>
                         @foreach($this->dayLabels as $dIdx => $day)
                             @if(($rowspanSkip[$dIdx] ?? 0) > 0)
                                 @php($rowspanSkip[$dIdx]--)
@@ -443,6 +441,8 @@ new #[Layout('layouts.print')] class extends Component
                             @if($span > 1) @php($rowspanSkip[$dIdx] = $span - 1) @endif
                             <td class="border border-base-300 p-1.5 align-top" @if($span > 1) rowspan="{{ $span }}" @endif>
                                 @foreach($cell as $slot)
+                                    @php($slotDur = (int) ($slot->duration ?? 1))
+                                    @php($timeRange = $this->slotTimeRange($hIdx + 1, $slotDur))
                                     <div class="bg-primary/10 border-l-4 rounded px-2 py-1.5 mb-1 leading-snug
                                                 {{ $slot->locked ? 'border-warning bg-warning/10' : 'border-primary' }}">
                                         <div class="flex items-start justify-between gap-1">
@@ -471,6 +471,9 @@ new #[Layout('layouts.print')] class extends Component
                                                 {{ $slot->activity->teachers->pluck('code')->filter()->implode(', ') ?: $slot->activity->teachers->pluck('name')->implode(', ') }}
                                             </div>
                                         @endif
+                                        <div class="text-xs font-mono text-base-content/60 mt-0.5">
+                                            {{ $timeRange }}{{ $slotDur > 1 ? ' · ' . $slotDur . ' SKS' : '' }}
+                                        </div>
                                         @if($slot->room)
                                             <div class="text-sm font-mono text-base-content/70 truncate"
                                                  title="{{ $slot->room->code ?? $slot->room->name }}">
