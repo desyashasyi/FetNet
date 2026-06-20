@@ -26,6 +26,9 @@ new #[Layout('layouts.program')] class extends Component
     public bool   $delModal = false;
     public ?int   $deleteId = null;
 
+    /** Filter by the subject's curriculum semester (1–8), independent of the academic period. */
+    public ?int   $subjectSemester = null;
+
     public array $headers = [
         ['key' => 'semester', 'label' => 'Sem',      'class' => 'w-1/12 text-center align-top'],
         ['key' => 'code',     'label' => 'Code',     'class' => 'w-1/12 align-top'],
@@ -50,6 +53,7 @@ new #[Layout('layouts.program')] class extends Component
     /** Search / view changes reset pagination. */
     public function updatedSearch(): void { $this->resetPage(); }
     public function updatedView(): void  { $this->resetPage(); }
+    public function updatedSubjectSemester(): void { $this->resetPage(); }
 
     /** Persist the chosen semester and reset pagination. */
     public function updatedSemesterId(): void
@@ -119,6 +123,7 @@ new #[Layout('layouts.program')] class extends Component
                 ->when($this->search, fn($q) => $q
                     ->where('name', 'like', "%{$this->search}%")
                     ->orWhere('code', 'like', "%{$this->search}%"))
+                ->when($this->subjectSemester, fn($q) => $q->where('semester', $this->subjectSemester))
                 ->orderBy('semester')->orderBy('code')
                 ->paginate(6);
 
@@ -134,6 +139,7 @@ new #[Layout('layouts.program')] class extends Component
                 ->when($this->search, fn($q) => $q->whereHas('planning', fn($p) => $p->whereHas('subject',
                     fn($s) => $s->where('name', 'like', "%{$this->search}%")
                                 ->orWhere('code', 'like', "%{$this->search}%"))))
+                ->when($this->subjectSemester, fn($q) => $q->where('s.semester', $this->subjectSemester))
                 ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id')
                 ->paginate(6)
                 ->through(fn($a) => tap($a, fn($item) => [
@@ -143,10 +149,19 @@ new #[Layout('layouts.program')] class extends Component
                     $item->students_nm = $a->students->pluck('name')->implode(', ') ?: '-',
                 ]));
 
+        // Distinct curriculum semesters present in this program's subjects (1–8).
+        $subjectSemesterOptions = $program
+            ? Subject::where('program_id', $program->id)
+                ->whereNotNull('semester')
+                ->distinct()->orderBy('semester')->pluck('semester')
+                ->map(fn($s) => ['id' => $s, 'name' => "Semester {$s}"])->values()->toArray()
+            : [];
+
         return [
-            'subjects'   => $subjects,
-            'activities' => $activities,
-            'programId'  => $program?->id,
+            'subjects'                => $subjects,
+            'activities'              => $activities,
+            'programId'               => $program?->id,
+            'subjectSemesterOptions'  => $subjectSemesterOptions,
         ];
     }
 }; ?>
@@ -162,6 +177,10 @@ new #[Layout('layouts.program')] class extends Component
         @if(count($semesterOptions))
             <x-select wire:model.live="semesterId" :options="$semesterOptions"
                       placeholder="Semester" class="w-48" />
+        @endif
+        @if(count($subjectSemesterOptions))
+            <x-choices single wire:model.live="subjectSemester" :options="$subjectSemesterOptions"
+                       placeholder="Course Semester" clearable class="w-44" />
         @endif
         <x-input placeholder="Search subject..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
         <div class="join">
