@@ -45,10 +45,14 @@ new class extends Component {
     public array $studentIds = [];
     public array $tagIds = [];
 
+    /** Optional batch (root node) to scope the Student Groups picker; null = all batches. */
+    public ?int  $batchFilter = null;
+
     public array $subjectOptions = [];
     public array $typeOptions = [];
     public array $teacherOptions = [];
     public array $studentOptions = [];
+    public array $batchOptions = [];
     public array $tagOptions = [];
 
     /** The active program (from the reactive programId prop), or null. */
@@ -80,6 +84,14 @@ new class extends Component {
             ->orderBy("name")
             ->get()
             ->map(fn($t) => ["id" => $t->id, "name" => $t->name])
+            ->toArray();
+
+        // Batch (root) options for the Student Groups filter.
+        $this->batchOptions = Student::where("program_id", $program->id)
+            ->whereNull("parent_id")
+            ->orderBy("name")
+            ->get(["id", "name"])
+            ->map(fn($b) => ["id" => $b->id, "name" => $b->name])
             ->toArray();
     }
 
@@ -197,13 +209,19 @@ new class extends Component {
             $this->studentOptions = [];
             return;
         }
-        $this->studentOptions = Student::where("program_id", $program->id)
-            ->whereNotNull("parent_id")
-            ->where(
-                fn($q) => $q
-                    ->where("name", "like", "%{$value}%")
-                    ->orWhereIn("id", $this->studentIds),
-            )
+        $selected = $this->studentIds;
+
+        $query = Student::where("program_id", $program->id)->whereNotNull("parent_id");
+
+        // Scope to the chosen batch (its groups + sub-groups); already-selected nodes stay
+        // visible so their labels still render even if they belong to another batch.
+        if ($this->batchFilter) {
+            $descendants = $this->batchDescendantIds($this->batchFilter);
+            $query->where(fn($q) => $q->whereIn("id", $descendants)->orWhereIn("id", $selected));
+        }
+
+        $this->studentOptions = $query
+            ->where(fn($q) => $q->where("name", "like", "%{$value}%")->orWhereIn("id", $selected))
             ->with(["parent.parent"])
             ->orderBy("name")
             ->limit(500)
@@ -212,6 +230,29 @@ new class extends Component {
             ->sortBy("name")
             ->values()
             ->toArray();
+    }
+
+    /** Re-filter the Student Groups picker when the batch filter changes. */
+    public function updatedBatchFilter(): void
+    {
+        $this->searchStudents();
+    }
+
+    /** All descendant node ids (groups + sub-groups, any depth) under a batch root. */
+    private function batchDescendantIds(int $batchId): array
+    {
+        $ids      = [];
+        $frontier = [$batchId];
+
+        while ($frontier) {
+            $children = Student::whereIn("parent_id", $frontier)->pluck("id")->all();
+            $children = array_values(array_diff($children, $ids));
+            if (! $children) break;
+            $ids      = array_merge($ids, $children);
+            $frontier = $children;
+        }
+
+        return $ids;
     }
 
     /** Build a student's display path by walking parent links: "2026 / TE01-7 / A". */
@@ -248,6 +289,7 @@ new class extends Component {
             "teacherIds",
             "studentIds",
             "tagIds",
+            "batchFilter",
             "editId",
         ]);
         $this->active = true;
@@ -277,6 +319,7 @@ new class extends Component {
             "tags",
         ])->findOrFail($id);
         $this->editId = $id;
+        $this->batchFilter = null;
         $this->subject_id = $a->planning?->subject_id;
         $this->type_id = $a->type_id;
         $this->active = (bool) $a->active;
@@ -391,6 +434,11 @@ new class extends Component {
             </div>
             <x-choices label="Teachers" searchable :search-function="'searchTeachers'"
                        wire:model="teacherIds" :options="$teacherOptions" placeholder="Select teachers..." />
+            @if(count($batchOptions))
+            <x-choices label="Batch (filter groups)" single searchable wire:model.live="batchFilter"
+                       :options="$batchOptions" placeholder="— All batches —" clearable
+                       hint="Pick a batch to narrow the groups below" />
+            @endif
             <x-choices label="Student Groups" searchable :search-function="'searchStudents'"
                        wire:model="studentIds" :options="$studentOptions" placeholder="Select groups..." />
             <x-slot:actions>
