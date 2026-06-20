@@ -2,6 +2,7 @@
 
 use App\Models\FetNet\Program;
 use App\Models\FetNet\Student;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
@@ -62,10 +63,17 @@ new class extends Component
     /** Validate and create/update a batch (parent_id null), then emit 'student-changed'. */
     public function saveBatch(): void
     {
+        $programId = $this->program()->id;
+
         $this->validate([
-            'batchName'  => 'required',
+            // Batch names must be unique among the program's batches (top-level nodes).
+            'batchName'  => ['required', Rule::unique('fetnet_student', 'name')
+                ->where(fn ($q) => $q->where('program_id', $programId)->whereNull('parent_id')->whereNull('deleted_at'))
+                ->ignore($this->batchId)],
             'batchBatch' => 'nullable',
             'batchCount' => 'required|integer|min:0',
+        ], [
+            'batchName.unique' => 'A batch with this name already exists.',
         ]);
 
         $data = [
@@ -113,8 +121,13 @@ new class extends Component
     public function saveGroup(): void
     {
         $this->validate([
-            'groupName'  => 'required',
+            // Group / sub-group names must be unique among siblings (same parent).
+            'groupName'  => ['required', Rule::unique('fetnet_student', 'name')
+                ->where(fn ($q) => $q->where('parent_id', $this->groupParentId)->whereNull('deleted_at'))
+                ->ignore($this->groupId)],
             'groupCount' => 'required|integer|min:0',
+        ], [
+            'groupName.unique' => 'A group with this name already exists under this parent.',
         ]);
 
         $data = [
