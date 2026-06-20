@@ -46,6 +46,20 @@ new #[Layout('layouts.client')] class extends Component
     }
 
     /**
+     * Poll fallback: if broadcast never arrived (Pusher down) but the compile job
+     * already finished, clear the progress bar so it doesn't stay stuck forever.
+     */
+    public function syncCompileState(): void
+    {
+        if ($this->compiling && ! $this->hasPending) {
+            $this->compiling = false;
+            unset($this->lastSuccess, $this->hasPending, $this->hasSlots,
+                  $this->downloadResultUrl, $this->isPublished, $this->viewTimetableUrl);
+            $this->primeActiveSolve();
+        }
+    }
+
+    /**
      * Solver finished (relayed from the solver-log card): refresh the derived result
      * actions so "View Timetable" / download / publish appear without a manual refresh.
      */
@@ -238,9 +252,9 @@ new #[Layout('layouts.client')] class extends Component
     </div>
 
     {{-- Compile progress: indeterminate bar shown while a compile is pending; it resolves
-         in place when FetCompiledEvent arrives (see onCompiled). --}}
+         via FetCompiledEvent (broadcast) or syncCompileState poll (fallback when Pusher is down). --}}
     @if($compiling || $this->hasPending)
-        <div class="mb-4 px-3 py-2.5 rounded-md bg-base-200">
+        <div wire:poll.2000ms="syncCompileState" class="mb-4 px-3 py-2.5 rounded-md bg-base-200">
             <div class="flex items-center gap-2 mb-1.5 text-sm font-medium text-base-content/70">
                 <x-loading class="loading-spinner loading-xs text-primary" />
                 Compiling FET file…
