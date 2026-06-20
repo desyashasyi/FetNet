@@ -472,7 +472,7 @@ new #[Layout('layouts.print')] class extends Component
                                         @else
                                             <div class="text-sm text-warning italic">no room</div>
                                         @endif
-                                        @if($slot->activity?->students->isNotEmpty() && $view === 'grid')
+                                        @if($slot->activity?->students->isNotEmpty())
                                             <div class="text-xs text-base-content/60 mt-0.5 truncate" title="{{ $slot->activity->students->pluck('name')->implode(', ') }}">
                                                 {{ $slot->activity->students->pluck('name')->implode(', ') }}
                                             </div>
