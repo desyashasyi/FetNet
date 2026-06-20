@@ -440,17 +440,16 @@ class FetXmlBuilder
         foreach ($ttc->groupBy('teacher_id') as $teacherId => $rows) {
             $key = $this->teacherKey[$teacherId] ?? null;
             if (! $key) continue;
+            $valid = $rows->filter(fn($r) => isset($this->dayNames[$r->day], $this->hourNames[$r->hour]));
+            if ($valid->isEmpty()) continue;
             $this->w->startElement('ConstraintTeacherNotAvailableTimes');
             $this->w->writeElement('Weight_Percentage', '100');
             $this->w->writeElement('Teacher', $key);
-            $this->w->writeElement('Number_of_Not_Available_Times', (string) $rows->count());
-            foreach ($rows as $r) {
-                $dayName  = $this->dayNames[$r->day] ?? null;
-                $hourName = $this->hourNames[$r->hour] ?? null;
-                if (! $dayName || ! $hourName) continue;
+            $this->w->writeElement('Number_of_Not_Available_Times', (string) $valid->count());
+            foreach ($valid as $r) {
                 $this->w->startElement('Not_Available_Time');
-                $this->w->writeElement('Day', $dayName);
-                $this->w->writeElement('Hour', $hourName);
+                $this->w->writeElement('Day', $this->dayNames[$r->day]);
+                $this->w->writeElement('Hour', $this->hourNames[$r->hour]);
                 $this->w->endElement();
             }
             $this->w->writeElement('Active', 'true');
@@ -464,17 +463,16 @@ class FetXmlBuilder
         foreach ($stc->groupBy('student_id') as $studentId => $rows) {
             $key = $this->studentKey[$studentId] ?? null;
             if (! $key) continue;
+            $valid = $rows->filter(fn($r) => isset($this->dayNames[$r->day], $this->hourNames[$r->hour]));
+            if ($valid->isEmpty()) continue;
             $this->w->startElement('ConstraintStudentsSetNotAvailableTimes');
             $this->w->writeElement('Weight_Percentage', '100');
             $this->w->writeElement('Students', $key);
-            $this->w->writeElement('Number_of_Not_Available_Times', (string) $rows->count());
-            foreach ($rows as $r) {
-                $dayName  = $this->dayNames[$r->day] ?? null;
-                $hourName = $this->hourNames[$r->hour] ?? null;
-                if (! $dayName || ! $hourName) continue;
+            $this->w->writeElement('Number_of_Not_Available_Times', (string) $valid->count());
+            foreach ($valid as $r) {
                 $this->w->startElement('Not_Available_Time');
-                $this->w->writeElement('Day', $dayName);
-                $this->w->writeElement('Hour', $hourName);
+                $this->w->writeElement('Day', $this->dayNames[$r->day]);
+                $this->w->writeElement('Hour', $this->hourNames[$r->hour]);
                 $this->w->endElement();
             }
             $this->w->writeElement('Active', 'true');
@@ -485,18 +483,17 @@ class FetXmlBuilder
         // Activity preferred-time slots — emit once per emitted activity instance.
         $atc = ActivityTimeConstraint::whereIn('activity_id', $activities->pluck('id'))->get();
         foreach ($atc->groupBy('activity_id') as $activityId => $rows) {
+            $valid = $rows->filter(fn($r) => isset($this->dayNames[$r->day], $this->hourNames[$r->hour]));
+            if ($valid->isEmpty()) continue;
             foreach ($this->activityIdMap[$activityId] ?? [] as $emitId) {
                 $this->w->startElement('ConstraintActivityPreferredTimeSlots');
                 $this->w->writeElement('Weight_Percentage', '100');
                 $this->w->writeElement('Activity_Id', (string) $emitId);
-                $this->w->writeElement('Number_of_Preferred_Time_Slots', (string) $rows->count());
-                foreach ($rows as $r) {
-                    $dayName  = $this->dayNames[$r->day] ?? null;
-                    $hourName = $this->hourNames[$r->hour] ?? null;
-                    if (! $dayName || ! $hourName) continue;
+                $this->w->writeElement('Number_of_Preferred_Time_Slots', (string) $valid->count());
+                foreach ($valid as $r) {
                     $this->w->startElement('Preferred_Time_Slot');
-                    $this->w->writeElement('Preferred_Day', $dayName);
-                    $this->w->writeElement('Preferred_Hour', $hourName);
+                    $this->w->writeElement('Preferred_Day', $this->dayNames[$r->day]);
+                    $this->w->writeElement('Preferred_Hour', $this->hourNames[$r->hour]);
                     $this->w->endElement();
                 }
                 $this->w->writeElement('Active', 'true');

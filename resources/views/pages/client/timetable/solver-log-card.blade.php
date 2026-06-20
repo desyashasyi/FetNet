@@ -15,6 +15,7 @@ new class extends Component
     public bool    $open         = false;
 
     public array   $lines         = [];
+    public ?string $lastLine      = null;
     public ?string $status        = null;
     public ?string $resultPath    = null;
     public ?string $statusMessage = null;
@@ -36,6 +37,7 @@ new class extends Component
     {
         $this->compileId     = $compileId;
         $this->lines         = [];
+        $this->lastLine      = null;
         $this->status        = null;
         $this->resultPath    = null;
         $this->statusMessage = null;
@@ -78,9 +80,22 @@ new class extends Component
                     $lines = preg_split('/\R/', $content) ?: [];
                     $lines = array_values(array_filter($lines, fn($l) => $l !== ''));
                     $this->lines = array_slice($lines, -500);
+                    $this->lastLine = $this->extractProgressLine($this->lines);
                 }
             }
         }
+    }
+
+    private function extractProgressLine(array $lines): ?string
+    {
+        // Walk backwards: first line matching a known progress pattern wins.
+        foreach (array_reverse($lines) as $line) {
+            if (str_contains($line, 'placed') || str_contains($line, 'Generated')
+                || str_contains($line, 'timetable') || str_contains($line, '%')) {
+                return $line;
+            }
+        }
+        return ! empty($lines) ? end($lines) : null;
     }
 
     public function onLog(array $payload): void
@@ -91,6 +106,7 @@ new class extends Component
         if (count($this->lines) > 500) {
             $this->lines = array_slice($this->lines, -500);
         }
+        $this->lastLine = $this->extractProgressLine($this->lines);
         if ($this->status !== 'running') $this->status = 'running';
     }
 
@@ -171,6 +187,14 @@ new class extends Component
                           wire:confirm="Stop solver? Current best timetable will be saved." />
             @endif
         </div>
+
+        {{-- Single rolling status line from fet-cl --}}
+        @if($lastLine && in_array($status, ['running', 'queued', 'stopping'], true))
+            <div class="flex items-center gap-2 mb-3 px-3 py-2 rounded-md bg-base-200 border border-base-300">
+                <span class="loading loading-dots loading-xs text-warning"></span>
+                <span class="font-mono text-xs text-base-content truncate" title="{{ $lastLine }}">{{ $lastLine }}</span>
+            </div>
+        @endif
 
         @php($report = $this->report)
         @php($totalActivities = (int) ($report['summary']['activities'] ?? 0))
