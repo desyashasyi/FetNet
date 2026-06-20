@@ -4,6 +4,7 @@ use App\Models\FetNet\Client;
 use App\Models\FetNet\ClientConfig;
 use App\Models\FetNet\Program;
 use App\Models\FetNet\Semester;
+use App\Models\FetNet\TeacherTimeConstraint;
 use App\Models\FetNet\TimetableSlot;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -121,6 +122,36 @@ new #[Layout('layouts.print')] class extends Component
             ->get();
     }
 
+    /**
+     * Slot ids whose placement clashes with a not-available time of one of the activity's
+     * assigned teachers (same day/hour basis as FetXmlBuilder). Surfaces, e.g., a locked
+     * slot that no longer fits after its pengampu changed. Returns [slotId => true].
+     */
+    #[Computed]
+    public function conflicts(): array
+    {
+        $placed = collect($this->placedSlots);
+        $teacherIds = $placed->flatMap(fn($s) => $s->activity?->teachers->pluck('id') ?? collect())
+            ->unique()->values();
+
+        if ($teacherIds->isEmpty()) return [];
+
+        // blocked[teacherId]["day-hour"] = true
+        $blocked = TeacherTimeConstraint::whereIn('teacher_id', $teacherIds)
+            ->get(['teacher_id', 'day', 'hour'])
+            ->groupBy('teacher_id')
+            ->map(fn($g) => $g->mapWithKeys(fn($c) => ["{$c->day}-{$c->hour}" => true])->all());
+
+        $out = [];
+        foreach ($placed as $s) {
+            $key = "{$s->day_index}-{$s->hour_index}";
+            foreach ($s->activity?->teachers ?? [] as $t) {
+                if (isset($blocked[$t->id][$key])) { $out[$s->id] = true; break; }
+            }
+        }
+        return $out;
+    }
+
     #[Computed]
     public function gridIndex(): array
     {
@@ -158,6 +189,7 @@ new #[Layout('layouts.print')] class extends Component
                     $bag->push([
                         'id'         => $s->id,
                         'locked'     => (bool) $s->locked,
+                        'conflict'   => isset($this->conflicts[$s->id]),
                         'day_idx'    => $dIdx,
                         'hour_idx'   => $hIdx,
                         'day'        => $this->dayLabels[$dIdx - 1]  ?? "Day {$dIdx}",
@@ -342,7 +374,11 @@ new #[Layout('layouts.print')] class extends Component
                         <td class="text-sm">{{ $r['students'] }}</td>
                         <td class="text-sm font-mono">{{ $r['room'] }}</td>
                         @if($view === 'teacher')
-                            <td class="text-center print:hidden">
+                            <td class="text-center print:hidden whitespace-nowrap">
+                                @if($r['conflict'])
+                                    <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-error inline"
+                                            tooltip="Clashes with a teacher's not-available time" />
+                                @endif
                                 <x-button :icon="$r['locked'] ? 'o-lock-closed' : 'o-lock-open'"
                                           class="btn-ghost btn-xs btn-square {{ $r['locked'] ? 'text-primary' : 'text-base-content/30' }}"
                                           wire:click="toggleLock({{ $r['id'] }})"
@@ -383,13 +419,22 @@ new #[Layout('layouts.print')] class extends Component
                                             <div class="font-bold text-sm">
                                                 {{ $slot->activity?->planning?->subject?->code ?? 'subj?' }}
                                             </div>
-                                            @if($view === 'teacher')
-                                                <x-button :icon="$slot->locked ? 'o-lock-closed' : 'o-lock-open'"
-                                                          class="btn-ghost btn-xs btn-square -mr-1 -mt-0.5 print:hidden {{ $slot->locked ? 'text-warning' : 'text-base-content/30' }}"
-                                                          wire:click="toggleLock({{ $slot->id }})"
-                                                          spinner="toggleLock({{ $slot->id }})"
-                                                          :tooltip="$slot->locked ? 'Locked — click to unlock' : 'Lock this slot in place'" />
-                                            @endif
+                                            <div class="flex items-center shrink-0">
+                                                @if(isset($this->conflicts[$slot->id]))
+                                                    <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-error"
+                                                            tooltip="Clashes with a teacher's not-available time" />
+                                                @endif
+                                                @if($view === 'teacher')
+                                                    <x-button :icon="$slot->locked ? 'o-lock-closed' : 'o-lock-open'"
+                                                              class="btn-ghost btn-xs btn-square -mr-1 -mt-0.5 print:hidden {{ $slot->locked ? 'text-warning' : 'text-base-content/30' }}"
+                                                              wire:click="toggleLock({{ $slot->id }})"
+                                                              spinner="toggleLock({{ $slot->id }})"
+                                                              :tooltip="$slot->locked ? 'Locked — click to unlock' : 'Lock this slot in place'" />
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-base-content/70 leading-tight">
+                                            {{ $slot->activity?->planning?->subject?->name ?? '' }}
                                         </div>
                                         @if($slot->activity?->teachers->isNotEmpty())
                                             <div class="text-sm text-base-content/80">
