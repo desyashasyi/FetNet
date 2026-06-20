@@ -193,7 +193,7 @@ new #[Layout('layouts.print')] class extends Component
                         'day_idx'    => $dIdx,
                         'hour_idx'   => $hIdx,
                         'day'        => $this->dayLabels[$dIdx - 1]  ?? "Day {$dIdx}",
-                        'hour'       => $this->hourLabels[$hIdx - 1] ?? "H{$hIdx}",
+                        'hour'       => $this->slotTimeRange($hIdx, (int) ($s->duration ?? 1)),
                         'subj_code'  => $s->activity?->planning?->subject?->code ?? '—',
                         'subj_name'  => $s->activity?->planning?->subject?->name ?? '—',
                         'teacher'    => $s->activity?->teachers->pluck('code')->filter()->implode(', ')
@@ -205,6 +205,26 @@ new #[Layout('layouts.print')] class extends Component
             }
         }
         return $bag->sortBy(['day_idx', 'hour_idx'])->values()->toArray();
+    }
+
+    /**
+     * Build a human-readable time range for a slot starting at 1-based $hourIndex
+     * spanning $duration consecutive bookable slots.
+     * e.g. hourIndex=1, duration=2 → "07:00–08:40"
+     */
+    private function slotTimeRange(int $hourIndex, int $duration): string
+    {
+        $labels = $this->hourLabels; // 0-indexed array of "HH:MM–HH:MM" strings
+        $startLabel = $labels[$hourIndex - 1] ?? null;
+        if (! $startLabel) return "H{$hourIndex}";
+
+        $endLabel = $duration > 1 ? ($labels[$hourIndex + $duration - 2] ?? null) : null;
+
+        // Extract "HH:MM" start from first slot and "HH:MM" end from last slot.
+        $start = explode('–', $startLabel)[0] ?? $startLabel;
+        $end   = $endLabel ? (explode('–', $endLabel)[1] ?? null) : null;
+
+        return $end ? "{$start}–{$end}" : $startLabel;
     }
 
     #[Computed]

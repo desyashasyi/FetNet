@@ -17,6 +17,7 @@ class TimetableSlot extends Model
     protected $casts = [
         'day_index'      => 'integer',
         'hour_index'     => 'integer',
+        'duration'       => 'integer',
         'locked'         => 'boolean',
         'weight_percent' => 'integer',
     ];
