@@ -39,6 +39,8 @@ new class extends Component
     public ?int   $intervalEnd       = null;
     public array  $blocked           = [];
     public array  $teacherOptions    = [];
+    /** Display name of the teacher being edited (not-available modal shows this, no selector). */
+    public string $teacherName       = '';
 
     // ── Static labels ─────────────────────────────────────────────────────────
 
@@ -215,7 +217,8 @@ new class extends Component
     {
         $this->reset(['editConstraintId', 'blocked']);
         $this->teacherId = $teacherId;
-        $this->searchTeachers();
+        $teacher = Teacher::find($teacherId);
+        $this->teacherName = $teacher ? "[{$teacher->code}] {$teacher->name}" : '—';
         $this->loadBlocked();
         $this->loadNotAvailableWeight();
         $this->modal = true;
@@ -416,10 +419,10 @@ new class extends Component
 
             <div class="space-y-4">
                 @if($target === 'teacher')
-                    <x-choices label="Teacher" wire:model.live="teacherId" single
-                               searchable :search-function="'searchTeachers'"
-                               :options="$teacherOptions" placeholder="Select teacher"
-                               class="w-72" />
+                    <div>
+                        <p class="text-xs text-base-content/50 mb-0.5">Teacher</p>
+                        <p class="font-semibold">{{ $teacherName ?: '—' }}</p>
+                    </div>
                 @endif
 
                 @if($teacherId && $target === 'teacher')
