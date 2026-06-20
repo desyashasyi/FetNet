@@ -78,8 +78,10 @@ new #[Layout('layouts.client')] class extends Component
                   placeholder="Academic Year" class="w-48" />
         <x-select wire:model.live="semesterId" :options="$semesterOptions"
                   placeholder="Semester" class="w-48" />
-        <x-choices single searchable wire:model.live="programId" :options="$programOptions"
-                   placeholder="— All Programs —" clearable class="w-72 shrink-0" />
+        <div class="w-72 shrink-0">
+            <x-choices single searchable wire:model.live="programId" :options="$programOptions"
+                       placeholder="— All Programs —" clearable />
+        </div>
     </div>
 
     @if(! $semesterId)
