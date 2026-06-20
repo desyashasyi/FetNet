@@ -122,6 +122,12 @@ new class extends Component
             'stopped' => $this->warning('Solver stopped.',       position: 'toast-top toast-center'),
             default   => $this->error('Solver failed: ' . ($this->statusMessage ?? 'unknown'), position: 'toast-top toast-center'),
         };
+
+        // Tell the parent page to refresh its result actions (View Timetable, download,
+        // publish) now that slots exist — otherwise they only appear after a manual refresh.
+        if (in_array($this->status, ['success', 'stopped'], true)) {
+            $this->dispatch('solver-finished');
+        }
     }
 
     public function stop(): void

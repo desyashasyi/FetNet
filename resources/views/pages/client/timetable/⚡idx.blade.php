@@ -8,6 +8,7 @@ use App\Models\FetNet\FetCompile;
 use App\Models\FetNet\TimetableSlot;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Mary\Traits\Toast;
 
@@ -39,6 +40,18 @@ new #[Layout('layouts.client')] class extends Component
     public function onCompiled(array $payload): void
     {
         $this->compiling = false;
+        unset($this->lastSuccess, $this->hasPending, $this->hasSlots,
+              $this->downloadResultUrl, $this->isPublished, $this->viewTimetableUrl);
+        $this->primeActiveSolve();
+    }
+
+    /**
+     * Solver finished (relayed from the solver-log card): refresh the derived result
+     * actions so "View Timetable" / download / publish appear without a manual refresh.
+     */
+    #[On('solver-finished')]
+    public function onSolverFinished(): void
+    {
         unset($this->lastSuccess, $this->hasPending, $this->hasSlots,
               $this->downloadResultUrl, $this->isPublished, $this->viewTimetableUrl);
         $this->primeActiveSolve();
