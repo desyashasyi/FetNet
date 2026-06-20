@@ -179,8 +179,8 @@ new #[Layout('layouts.program')] class extends Component
                       placeholder="Semester" class="w-48" />
         @endif
         @if(count($subjectSemesterOptions))
-            <x-select wire:model.live="subjectSemester" :options="$subjectSemesterOptions"
-                      placeholder="Course Semester" class="w-44" />
+            <x-choices single searchable wire:model.live="subjectSemester" :options="$subjectSemesterOptions"
+                       placeholder="Course Semester" clearable class="w-60 min-w-60" />
         @endif
         <x-input placeholder="Search subject..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
         <div class="join">
