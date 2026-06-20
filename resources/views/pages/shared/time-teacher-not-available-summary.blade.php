@@ -15,16 +15,13 @@ new class extends Component
     /** Current page for the in-memory teacher pager (10 per page). */
     public int $page = 1;
 
-    /** Live teacher-name search. */
-    public string $search = '';
+    /** Live teacher-name search, owned by the parent page (rendered in its filter row). */
+    #[Reactive] public string $search = '';
 
     private const PER_PAGE = 10;
 
     public function prevPage(): void { if ($this->page > 1) $this->page--; }
     public function nextPage(int $lastPage): void { if ($this->page < $lastPage) $this->page++; }
-
-    /** Reset to the first page whenever the search term changes. */
-    public function updatedSearch(): void { $this->page = 1; }
 
     public function edit(int $teacherId): void
     {
@@ -54,10 +51,6 @@ new class extends Component
 
 <div>
     <x-card>
-        <div class="mb-3">
-            <x-input placeholder="Search teacher..." wire:model.live.debounce="search"
-                     icon="o-magnifying-glass" clearable class="w-64" />
-        </div>
         <table class="table table-zebra table-sm w-full">
             <thead>
                 <tr class="border-b border-base-200">
