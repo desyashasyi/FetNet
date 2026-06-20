@@ -377,9 +377,19 @@ new #[Layout('layouts.print')] class extends Component
                             @php($cell = $this->gridIndex[$dIdx + 1][$hIdx + 1] ?? [])
                             <td class="border border-base-300 p-1.5 align-top">
                                 @foreach($cell as $slot)
-                                    <div class="bg-primary/10 border-l-4 border-primary rounded px-2 py-1.5 mb-1 leading-snug">
-                                        <div class="font-bold text-sm">
-                                            {{ $slot->activity?->planning?->subject?->code ?? 'subj?' }}
+                                    <div class="bg-primary/10 border-l-4 rounded px-2 py-1.5 mb-1 leading-snug
+                                                {{ $slot->locked ? 'border-warning bg-warning/10' : 'border-primary' }}">
+                                        <div class="flex items-start justify-between gap-1">
+                                            <div class="font-bold text-sm">
+                                                {{ $slot->activity?->planning?->subject?->code ?? 'subj?' }}
+                                            </div>
+                                            @if($view === 'teacher')
+                                                <x-button :icon="$slot->locked ? 'o-lock-closed' : 'o-lock-open'"
+                                                          class="btn-ghost btn-xs btn-square -mr-1 -mt-0.5 print:hidden {{ $slot->locked ? 'text-warning' : 'text-base-content/30' }}"
+                                                          wire:click="toggleLock({{ $slot->id }})"
+                                                          spinner="toggleLock({{ $slot->id }})"
+                                                          :tooltip="$slot->locked ? 'Locked — click to unlock' : 'Lock this slot in place'" />
+                                            @endif
                                         </div>
                                         @if($slot->activity?->teachers->isNotEmpty())
                                             <div class="text-sm text-base-content/80">
