@@ -171,7 +171,11 @@ class SolveTimetableJob implements ShouldQueue
 
     /**
      * Parse the solver's result .fet (via FetSolutionParser + the activity-id map) and
-     * upsert one locked TimetableSlot per placed activity for this client + semester.
+     * upsert one TimetableSlot per placed activity for this client + semester.
+     *
+     * Locking is MANUAL: newly placed slots start unlocked, and the lock flag of an
+     * existing slot is preserved across re-generations (a slot the user locked stays
+     * locked — FET keeps it in place — while everything else remains free to move).
      */
     private function upsertSlotsFromResult(FetCompile $compile, string $resultRel): void
     {
@@ -181,20 +185,21 @@ class SolveTimetableJob implements ShouldQueue
         if (empty($parsed)) return;
 
         foreach ($parsed as $row) {
-            TimetableSlot::updateOrCreate(
-                [
-                    'client_id'   => $compile->client_id,
-                    'semester_id' => $compile->semester_id,
-                    'activity_id' => $row['activity_id'],
-                ],
-                [
-                    'day_index'      => $row['day_index'],
-                    'hour_index'     => $row['hour_index'],
-                    'room_id'        => $row['room_id'],
-                    'locked'         => true,
-                    'weight_percent' => 100,
-                ],
-            );
+            $slot = TimetableSlot::firstOrNew([
+                'client_id'   => $compile->client_id,
+                'semester_id' => $compile->semester_id,
+                'activity_id' => $row['activity_id'],
+            ]);
+
+            $slot->day_index      = $row['day_index'];
+            $slot->hour_index     = $row['hour_index'];
+            $slot->room_id        = $row['room_id'];
+            $slot->weight_percent = 100;
+            // Default new slots to unlocked; never overwrite a user's existing manual lock.
+            if (! $slot->exists) {
+                $slot->locked = false;
+            }
+            $slot->save();
         }
     }
 
