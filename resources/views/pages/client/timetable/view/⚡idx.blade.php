@@ -9,9 +9,12 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Mary\Traits\Toast;
 
 new #[Layout('layouts.print')] class extends Component
 {
+    use Toast;
+
     #[Url] public ?int $sem  = null;
     #[Url] public string $view = 'grid'; // grid | teacher | student | room
 
@@ -32,6 +35,24 @@ new #[Layout('layouts.print')] class extends Component
     private function client(): ?Client
     {
         return Client::where('user_id', auth()->id())->first();
+    }
+
+    /**
+     * Lock / unlock a placed slot. A locked slot is pinned to its day/hour AND room on the
+     * next compile (FetXmlBuilder emits Permanently_Locked=true for both), so re-generating
+     * the timetable keeps it in place. Scoped to the signed-in client's own slots.
+     */
+    public function toggleLock(int $slotId): void
+    {
+        $slot = TimetableSlot::where('client_id', $this->clientId)->find($slotId);
+        if (! $slot) { $this->error('Slot not found.', position: 'toast-top toast-center'); return; }
+
+        $slot->update(['locked' => ! $slot->locked]);
+        unset($this->placedSlots);
+
+        $slot->locked
+            ? $this->success('Slot locked — it will stay put on the next generate.', position: 'toast-top toast-center')
+            : $this->warning('Slot unlocked.', position: 'toast-top toast-center');
     }
 
     #[Computed]
@@ -135,6 +156,8 @@ new #[Layout('layouts.print')] class extends Component
             foreach ($hours as $hIdx => $cells) {
                 foreach ($cells as $s) {
                     $bag->push([
+                        'id'         => $s->id,
+                        'locked'     => (bool) $s->locked,
                         'day_idx'    => $dIdx,
                         'hour_idx'   => $hIdx,
                         'day'        => $this->dayLabels[$dIdx - 1]  ?? "Day {$dIdx}",
@@ -298,6 +321,9 @@ new #[Layout('layouts.print')] class extends Component
                     <th class="w-32">Teacher</th>
                     <th>Class / Students</th>
                     <th class="w-40">Room</th>
+                    @if($view === 'teacher')
+                        <th class="w-20 text-center print:hidden">Lock</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -315,10 +341,19 @@ new #[Layout('layouts.print')] class extends Component
                         <td class="text-sm">{{ $r['teacher'] }}</td>
                         <td class="text-sm">{{ $r['students'] }}</td>
                         <td class="text-sm font-mono">{{ $r['room'] }}</td>
+                        @if($view === 'teacher')
+                            <td class="text-center print:hidden">
+                                <x-button :icon="$r['locked'] ? 'o-lock-closed' : 'o-lock-open'"
+                                          class="btn-ghost btn-xs btn-square {{ $r['locked'] ? 'text-primary' : 'text-base-content/30' }}"
+                                          wire:click="toggleLock({{ $r['id'] }})"
+                                          spinner="toggleLock({{ $r['id'] }})"
+                                          :tooltip="$r['locked'] ? 'Locked — click to unlock' : 'Lock this slot in place'" />
+                            </td>
+                        @endif
                     </tr>
                     @php($prevDay = $r['day'])
                 @empty
-                    <tr><td colspan="7" class="text-center text-sm text-base-content/40 py-6">
+                    <tr><td colspan="{{ $view === 'teacher' ? 8 : 7 }}" class="text-center text-sm text-base-content/40 py-6">
                         No slots in current filter. Pick a program, teacher, student, or room first.
                     </td></tr>
                 @endforelse
