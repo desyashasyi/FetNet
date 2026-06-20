@@ -15,20 +15,31 @@ new class extends Component
     /** Current page for the in-memory teacher pager (10 per page). */
     public int $page = 1;
 
+    /** Live teacher-name search. */
+    public string $search = '';
+
     private const PER_PAGE = 10;
 
     public function prevPage(): void { if ($this->page > 1) $this->page--; }
     public function nextPage(int $lastPage): void { if ($this->page < $lastPage) $this->page++; }
+
+    /** Reset to the first page whenever the search term changes. */
+    public function updatedSearch(): void { $this->page = 1; }
 
     public function edit(int $teacherId): void
     {
         $this->dispatch('open-not-available-edit', teacherId: $teacherId);
     }
 
-    /** Sort teachers alphabetically and slice to the current page (10 per page). */
+    /** Filter by name, sort alphabetically, and slice to the current page (10 per page). */
     public function with(): array
     {
+        $term = mb_strtolower(trim($this->search));
+
         $sorted = collect($this->rows)
+            ->when($term !== '', fn($c) => $c->filter(
+                fn($r) => str_contains(mb_strtolower($r['teacher'] ?? ''), $term)
+            ))
             ->sortBy(fn($r) => mb_strtolower($r['teacher'] ?? ''), SORT_NATURAL)
             ->values();
 
@@ -43,6 +54,10 @@ new class extends Component
 
 <div>
     <x-card>
+        <div class="mb-3">
+            <x-input placeholder="Search teacher..." wire:model.live.debounce="search"
+                     icon="o-magnifying-glass" clearable class="w-64" />
+        </div>
         <table class="table table-zebra table-sm w-full">
             <thead>
                 <tr class="border-b border-base-200">
