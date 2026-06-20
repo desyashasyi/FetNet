@@ -39,14 +39,19 @@ class ActivityBatchFilterTest extends TestCase
         // Batch picker lists only root nodes.
         $this->assertEqualsCanonicalizing([$batchA->id, $batchB->id], $this->ids($sheet->get('batchOptions')));
 
-        // No filter: groups + sub-groups from every batch are offered (roots excluded).
+        // No filter: every node is offered — root batches (selectable as a whole-year
+        // set) plus all groups and sub-groups.
         $all = $this->ids($sheet->get('studentOptions'));
-        $this->assertEqualsCanonicalizing([$groupA->id, $subA->id, $groupB->id], $all);
+        $this->assertEqualsCanonicalizing(
+            [$batchA->id, $batchB->id, $groupA->id, $subA->id, $groupB->id],
+            $all,
+        );
 
-        // Filter to batch A: only A's descendants remain.
+        // Filter to batch A: the batch root itself + its descendants remain.
         $sheet->set('batchFilter', $batchA->id);
         $filtered = $this->ids($sheet->get('studentOptions'));
-        $this->assertEqualsCanonicalizing([$groupA->id, $subA->id], $filtered);
+        $this->assertEqualsCanonicalizing([$batchA->id, $groupA->id, $subA->id], $filtered);
         $this->assertNotContains($groupB->id, $filtered);
+        $this->assertNotContains($batchB->id, $filtered);
     }
 }
