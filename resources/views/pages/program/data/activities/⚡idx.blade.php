@@ -3,7 +3,9 @@
 use App\Livewire\Concerns\HasProgramSemester;
 use App\Models\FetNet\Activity;
 use App\Models\FetNet\Program;
+use App\Models\FetNet\Student;
 use App\Models\FetNet\Subject;
+use App\Models\FetNet\Teacher;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -21,10 +23,12 @@ new #[Layout('layouts.program')] class extends Component
 {
     use WithPagination, Toast, HasProgramSemester;
 
-    public string $search   = '';
-    public string $view     = 'subject';
-    public bool   $delModal = false;
-    public ?int   $deleteId = null;
+    public string $search         = '';
+    public string $view           = 'subject';
+    public bool   $delModal       = false;
+    public ?int   $deleteId       = null;
+    public ?int   $teacherFilterId = null;
+    public ?int   $studentFilterId = null;
 
     /** Filter by the subject's curriculum semester (1–8), independent of the academic period. */
     public ?int   $subjectSemester = null;
@@ -50,10 +54,12 @@ new #[Layout('layouts.program')] class extends Component
         if ($program) $this->mountSemesterContext($program->client_id);
     }
 
-    /** Search / view changes reset pagination. */
-    public function updatedSearch(): void { $this->resetPage(); }
-    public function updatedView(): void  { $this->resetPage(); }
+    /** Search / view / teacher-filter changes reset pagination. */
+    public function updatedSearch(): void         { $this->resetPage(); }
+    public function updatedView(): void           { $this->resetPage(); }
     public function updatedSubjectSemester(): void { $this->resetPage(); }
+    public function updatedTeacherFilterId(): void { $this->resetPage(); }
+    public function updatedStudentFilterId(): void { $this->resetPage(); }
 
     /** Persist the chosen semester and reset pagination. */
     public function updatedSemesterId(): void
@@ -115,6 +121,10 @@ new #[Layout('layouts.program')] class extends Component
         $subjects = Subject::with(['activities' => fn($q) => $q
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) =>
                     $p->where('semester_id', $this->semesterId)))
+                ->when($this->teacherFilterId, fn($q) => $q->whereHas('teachers',
+                    fn($t) => $t->where('fetnet_teacher.id', $this->teacherFilterId)))
+                ->when($this->studentFilterId, fn($q) => $q->whereHas('students',
+                    fn($t) => $t->where('fetnet_student.id', $this->studentFilterId)))
                 ->with(['teachers', 'type', 'students', 'subActivities'])
               ])
                 ->when($program, fn($q) => $q->where('program_id', $program->id), fn($q) => $q->whereRaw('0=1'))
@@ -124,6 +134,16 @@ new #[Layout('layouts.program')] class extends Component
                     ->where('name', 'like', "%{$this->search}%")
                     ->orWhere('code', 'like', "%{$this->search}%"))
                 ->when($this->subjectSemester, fn($q) => $q->where('semester', $this->subjectSemester))
+                ->when($this->teacherFilterId, fn($q) => $q->whereHas('activities',
+                    fn($a) => $a->whereHas('teachers',
+                        fn($t) => $t->where('fetnet_teacher.id', $this->teacherFilterId))
+                    ->when($this->semesterId, fn($a) => $a->whereHas('planning',
+                        fn($p) => $p->where('semester_id', $this->semesterId)))))
+                ->when($this->studentFilterId, fn($q) => $q->whereHas('activities',
+                    fn($a) => $a->whereHas('students',
+                        fn($t) => $t->where('fetnet_student.id', $this->studentFilterId))
+                    ->when($this->semesterId, fn($a) => $a->whereHas('planning',
+                        fn($p) => $p->where('semester_id', $this->semesterId)))))
                 ->orderBy('semester')->orderBy('code')
                 ->paginate(6);
 
@@ -140,6 +160,10 @@ new #[Layout('layouts.program')] class extends Component
                     fn($s) => $s->where('name', 'like', "%{$this->search}%")
                                 ->orWhere('code', 'like', "%{$this->search}%"))))
                 ->when($this->subjectSemester, fn($q) => $q->where('s.semester', $this->subjectSemester))
+                ->when($this->teacherFilterId, fn($q) => $q->whereHas('teachers',
+                    fn($t) => $t->where('fetnet_teacher.id', $this->teacherFilterId)))
+                ->when($this->studentFilterId, fn($q) => $q->whereHas('students',
+                    fn($t) => $t->where('fetnet_student.id', $this->studentFilterId)))
                 ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id')
                 ->paginate(6)
                 ->through(fn($a) => tap($a, fn($item) => [
@@ -157,11 +181,37 @@ new #[Layout('layouts.program')] class extends Component
                 ->map(fn($s) => ['id' => $s, 'name' => "Semester {$s}"])->values()->toArray()
             : [];
 
+        // Teachers who have at least one activity in this program (optionally scoped to semester).
+        $teacherOptions = $program
+            ? Teacher::whereHas('activities', fn($q) => $q
+                ->where('fetnet_activity.program_id', $program->id)
+                ->when($this->semesterId, fn($q) => $q->whereHas('planning',
+                    fn($p) => $p->where('semester_id', $this->semesterId))))
+                ->orderBy('name')
+                ->get(['id', 'name', 'code'])
+                ->map(fn($t) => ['id' => $t->id, 'name' => $t->code ? "{$t->code} — {$t->name}" : $t->name])
+                ->values()->toArray()
+            : [];
+
+        // Student groups that appear in at least one activity in this program/semester.
+        $studentOptions = $program
+            ? Student::whereHas('activities', fn($q) => $q
+                ->where('fetnet_activity.program_id', $program->id)
+                ->when($this->semesterId, fn($q) => $q->whereHas('planning',
+                    fn($p) => $p->where('semester_id', $this->semesterId))))
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn($s) => ['id' => $s->id, 'name' => $s->name])
+                ->values()->toArray()
+            : [];
+
         return [
             'subjects'                => $subjects,
             'activities'              => $activities,
             'programId'               => $program?->id,
             'subjectSemesterOptions'  => $subjectSemesterOptions,
+            'teacherOptions'          => $teacherOptions,
+            'studentOptions'          => $studentOptions,
         ];
     }
 }; ?>
@@ -181,6 +231,20 @@ new #[Layout('layouts.program')] class extends Component
         @if(count($subjectSemesterOptions))
             <x-select wire:model.live="subjectSemester" :options="$subjectSemesterOptions"
                       placeholder="All Course Semesters" class="w-52" />
+        @endif
+        @if(count($teacherOptions))
+            <x-choices single clearable searchable
+                       wire:model.live="teacherFilterId"
+                       :options="$teacherOptions"
+                       placeholder="All lecturers"
+                       class="w-max min-w-48" />
+        @endif
+        @if(count($studentOptions))
+            <x-choices single clearable searchable
+                       wire:model.live="studentFilterId"
+                       :options="$studentOptions"
+                       placeholder="All student groups"
+                       class="w-max min-w-48" />
         @endif
         <x-input placeholder="Search subject..." wire:model.live.debounce="search" icon="o-magnifying-glass" clearable />
         <div class="join">
