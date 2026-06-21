@@ -34,11 +34,10 @@ new #[Layout('layouts.program')] class extends Component
     public ?int   $subjectSemester = null;
 
     public array $headers = [
-        ['key' => 'semester', 'label' => 'Sem',      'class' => 'w-1/12 text-center align-top'],
-        ['key' => 'code',     'label' => 'Code',     'class' => 'w-1/12 align-top'],
-        ['key' => 'name',     'label' => 'Subject',  'class' => 'w-4/12 align-top'],
-        ['key' => 'classes',  'label' => 'Classes',  'class' => 'w-5/12 align-top'],
-        ['key' => 'action',   'label' => '',         'class' => 'w-1/12 align-top text-right'],
+        ['key' => 'semester', 'label' => 'Sem',     'class' => 'w-1/12 text-center align-top'],
+        ['key' => 'code',     'label' => 'Code',    'class' => 'w-1/12 align-top'],
+        ['key' => 'name',     'label' => 'Subject', 'class' => 'w-3/12 align-top'],
+        ['key' => 'classes',  'label' => 'Classes', 'class' => 'w-7/12 align-top'],
     ];
 
     /** The signed-in user's program; scopes every query on this page. */
@@ -256,7 +255,6 @@ new #[Layout('layouts.program')] class extends Component
         @if($semesterId)
             <x-button label="Planning" icon="o-calendar-days" class="btn-ghost btn-sm" wire:click="$dispatch('open-planning')" />
         @endif
-        <x-button label="Add" icon="o-plus" class="btn-primary" wire:click="$dispatch('open-activity-create')" />
     </div>
 
     @if($view === 'subject')
@@ -312,10 +310,6 @@ new #[Layout('layouts.program')] class extends Component
                 </div>
             @endscope
 
-            @scope('cell_action', $row)
-                <x-button icon="o-plus-circle" class="btn-ghost btn-sm btn-square"
-                          wire:click="$dispatch('open-activity-create', { subjectId: {{ $row->id }} })" tooltip="Add activity" />
-            @endscope
 
         </x-table>
     </x-card>
