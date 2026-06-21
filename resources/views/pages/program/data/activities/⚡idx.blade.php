@@ -280,7 +280,7 @@ new #[Layout('layouts.program')] class extends Component
                                 ? $subs->pluck('duration')->implode('+')
                                 : (string) $activity->duration;
                         @endphp
-                        <div class="group flex flex-col items-start gap-0">
+                        <div class="flex flex-col items-start gap-0 {{ $active ? '' : 'opacity-50' }}">
                             <div class="flex items-center gap-1">
                                 <div class="tooltip tooltip-top" data-tip="{{ $active ? 'Set inactive' : 'Set active' }}">
                                     <button wire:click="toggleActive({{ $activity->id }})"
@@ -291,7 +291,7 @@ new #[Layout('layouts.program')] class extends Component
                                              class="{{ $active ? 'badge-primary badge-dash' : 'badge-dash !bg-base-200 !text-base-content/40 !border-base-content/20' }} {{ !$groups ? 'border-warning text-warning' : '' }}" />
                                 </div>
                             </div>
-                            <div class="flex items-center h-0 overflow-hidden group-hover:h-auto group-hover:overflow-visible transition-all">
+                            <div class="flex items-center">
                                 <button wire:click="$dispatch('open-activity-edit', { id: {{ $activity->id }} })"
                                         class="btn btn-ghost btn-xs btn-square" title="Edit">
                                     <x-icon name="o-pencil" class="w-3 h-3" />
@@ -321,29 +321,51 @@ new #[Layout('layouts.program')] class extends Component
     </x-card>
     @else
     <x-card>
-        @php
-        $allHeaders = [
-            ['key' => 'subject_nm',  'label' => 'Subject',   'class' => 'w-4/12'],
-            ['key' => 'type_nm',     'label' => 'Type',      'class' => 'w-1/12'],
-            ['key' => 'duration',    'label' => 'Duration',  'class' => 'w-1/12 text-center'],
-            ['key' => 'teachers_nm', 'label' => 'Teachers',  'class' => 'w-2/12'],
-            ['key' => 'students_nm', 'label' => 'Groups',    'class' => 'w-2/12'],
-            ['key' => 'action',      'label' => '',          'class' => 'w-2/12 text-right'],
-        ];
-        @endphp
-        <x-table :striped="true" :headers="$allHeaders" :rows="$activities" with-pagination container-class="overflow-hidden" class="table-fixed">
-            @scope('cell_duration', $row)
-                <div class="text-center">{{ $row->duration }} hr</div>
-            @endscope
-            @scope('cell_action', $row)
-                <div class="flex justify-end gap-1">
-                    <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square"
-                              wire:click="$dispatch('open-activity-edit', { id: {{ $row->id }} })" tooltip="Edit" />
-                    <x-button icon="o-trash"  class="btn-ghost btn-sm btn-square text-error"
-                              wire:click="confirmDelete({{ $row->id }})" tooltip="Delete" />
-                </div>
-            @endscope
-        </x-table>
+        <div class="overflow-x-auto">
+            <table class="table table-sm w-full table-fixed">
+                <thead>
+                    <tr class="text-base-content/60 text-xs uppercase bg-base-200">
+                        <th class="w-5/12">Subject</th>
+                        <th class="w-1/12">Type</th>
+                        <th class="w-1/12 text-center">Duration</th>
+                        <th class="w-2/12">Lecturers</th>
+                        <th class="w-2/12">Groups</th>
+                        <th class="w-1/12"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($activities as $row)
+                        <tr class="{{ $row->active ? '' : 'opacity-50' }} border-b border-base-200 hover:bg-base-200/40">
+                            <td class="text-sm py-2">{{ $row->subject_nm }}</td>
+                            <td class="text-sm py-2">{{ $row->type_nm }}</td>
+                            <td class="text-sm py-2 text-center">{{ $row->duration }} hr</td>
+                            <td class="text-sm py-2">{{ $row->teachers_nm }}</td>
+                            <td class="text-sm py-2">{{ $row->students_nm }}</td>
+                            <td class="py-2">
+                                <div class="flex justify-end gap-1">
+                                    <button wire:click="toggleActive({{ $row->id }})"
+                                            class="btn btn-ghost btn-sm btn-square {{ $row->active ? 'text-success' : 'text-base-content/30' }}"
+                                            title="{{ $row->active ? 'Active — click to deactivate' : 'Inactive — click to activate' }}">
+                                        <x-icon name="{{ $row->active ? 'o-check-circle' : 'o-x-circle' }}" class="w-4 h-4" />
+                                    </button>
+                                    <x-button icon="o-pencil" class="btn-ghost btn-sm btn-square"
+                                              wire:click="$dispatch('open-activity-edit', { id: {{ $row->id }} })" tooltip="Edit" />
+                                    <x-button icon="o-trash"  class="btn-ghost btn-sm btn-square text-error"
+                                              wire:click="confirmDelete({{ $row->id }})" tooltip="Delete" />
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="text-center py-8 text-base-content/40 text-sm italic">No activities found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">
+            {{ $activities->links() }}
+        </div>
     </x-card>
     @endif
 
