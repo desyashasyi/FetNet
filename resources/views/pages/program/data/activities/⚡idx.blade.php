@@ -280,16 +280,17 @@ new #[Layout('layouts.program')] class extends Component
                         @endphp
                         <div class="flex flex-col items-start gap-0 {{ $active ? '' : 'opacity-50' }}">
                             <div class="flex items-center gap-1">
-                                <div class="tooltip tooltip-top" data-tip="{{ $active ? 'Set inactive' : 'Set active' }}">
-                                    <button wire:click="toggleActive({{ $activity->id }})"
-                                            class="w-2 h-2 rounded-full shrink-0 {{ $active ? 'bg-primary' : 'bg-base-content/20' }}"></button>
-                                </div>
                                 <div class="tooltip tooltip-top" data-tip="{{ $tooltip }}">
                                     <x-badge value="{{ ($teachers ?: '?') . ($groups ? ' ('.$groups.')' : ' (no student)') . ' ' . $durationStr }}"
                                              class="{{ $active ? 'badge-primary badge-dash' : 'badge-dash !bg-base-200 !text-base-content/40 !border-base-content/20' }} {{ !$groups ? 'border-warning text-warning' : '' }}" />
                                 </div>
                             </div>
                             <div class="flex items-center">
+                                <button wire:click="toggleActive({{ $activity->id }})"
+                                        class="btn btn-ghost btn-xs btn-square {{ $active ? 'text-success' : 'text-base-content/30' }}"
+                                        title="{{ $active ? 'Active — click to deactivate' : 'Inactive — click to activate' }}">
+                                    <x-icon name="{{ $active ? 'o-check-circle' : 'o-x-circle' }}" class="w-3 h-3" />
+                                </button>
                                 <button wire:click="$dispatch('open-activity-edit', { id: {{ $activity->id }} })"
                                         class="btn btn-ghost btn-xs btn-square" title="Edit">
                                     <x-icon name="o-pencil" class="w-3 h-3" />
