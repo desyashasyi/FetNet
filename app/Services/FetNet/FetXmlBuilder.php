@@ -25,12 +25,12 @@ use XMLWriter;
 /**
  * Build a FET (Free Timetabling Software) XML file for one Client + Semester.
  *
- * Output conforms to FET v6.22+ schema. See:
+ * Output conforms to FET v7.0+ schema. See:
  *   FetNet/docs/superpowers/specs/2026-05-15-fet-compile-design.md
  */
 class FetXmlBuilder
 {
-    private const FET_VERSION = '6.22.0';
+    private const FET_VERSION = '7.0.8';
 
     private XMLWriter $w;
 
@@ -117,10 +117,13 @@ class FetXmlBuilder
                         ])
                         ->get();
 
+        $this->validateActivities($activities);
+
         $this->emitSubjects($subjects);
         $this->emitActivityTags($tags);
         $this->emitTeachers($teachers, $subjects);
         $this->emitStudents($programs, $students);
+        $this->emitIndependentGroups();
         $this->emitActivities($activities, $programs);
         $this->emitBuildings($buildings);
         $this->emitRooms($spaces);
@@ -133,10 +136,44 @@ class FetXmlBuilder
         $this->emitTimeConstraints($teachers, $students, $activities, $programIds, $config, $lockedSlots);
         $this->emitSpaceConstraints($activities, $spaces, $programIds, $lockedSlots);
 
+        $this->w->startElement('Timetable_Generation_Options_List');
+        $this->w->endElement();
+
         $this->w->endElement(); // </fet>
         $this->w->endDocument();
 
         return $this->w->outputMemory();
+    }
+
+    // ─── Validation ──────────────────────────────────────────────────────
+
+    private function validateActivities(Collection $activities): void
+    {
+        $items = [];
+
+        foreach ($activities as $a) {
+            $issues = [];
+            if ($a->teachers->isEmpty()) $issues[] = 'No teacher assigned';
+            if ($a->students->isEmpty()) $issues[] = 'No student group assigned';
+            if ($a->spaces->isEmpty())   $issues[] = 'No room assigned';
+
+            if ($issues) {
+                $items[] = [
+                    'id'     => $a->id,
+                    'code'   => $a->planning?->subject?->code ?? '?',
+                    'name'   => $a->planning?->subject?->name ?? '?',
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        if (empty($items)) return;
+
+        throw new \RuntimeException(json_encode([
+            'type'  => 'incomplete_activities',
+            'count' => count($items),
+            'items' => $items,
+        ], JSON_UNESCAPED_UNICODE));
     }
 
     // ─── Days/Hours ───────────────────────────────────────────────────────
@@ -290,6 +327,7 @@ class FetXmlBuilder
                 $this->w->writeElement('Number_of_Students', (string) ($year->number_of_student ?: 0));
                 $this->w->writeElement('Comments', '');
                 $this->w->writeElement('Number_of_Categories', '0');
+                $this->w->writeElement('First_Category_Is_Permanent', 'false');
                 $this->w->writeElement('Separator', ' ');
 
                 foreach ($year->children as $group) {
@@ -338,6 +376,9 @@ class FetXmlBuilder
             $studentNames = $a->students->pluck('id')->map(fn($id) => $this->studentKey[$id] ?? null)->filter()->values();
             $tagNames     = $a->tags->pluck('id')->map(fn($id) => $this->tagKey[$id] ?? null)->filter()->values();
 
+            // FET requires at least one teacher per activity — skip unassigned ones.
+            if ($teacherNames->isEmpty()) continue;
+
             $subs       = $a->subActivities;
             $isSplit    = $subs->count() > 1;
             $components = $isSplit
@@ -351,9 +392,8 @@ class FetXmlBuilder
             foreach ($components as $partDuration) {
                 $this->w->startElement('Activity');
                 $this->w->writeElement('Id', (string) $counter);
-                $this->w->writeElement('Teacher', $teacherNames->first() ?? '');
-                foreach ($teacherNames->slice(1) as $extra) {
-                    $this->w->writeElement('Teacher', $extra);
+                foreach ($teacherNames as $tn) {
+                    $this->w->writeElement('Teacher', $tn);
                 }
                 $this->w->writeElement('Subject', $this->subjectKey[$subject->id]);
                 foreach ($tagNames as $tn) {
@@ -615,16 +655,13 @@ class FetXmlBuilder
             $rooms = $a->spaces;
             if ($rooms->isEmpty()) continue;
 
-            // Auto-fallback: drop rooms whose capacity is below the activity's
-            // total student count. If none survive, omit the constraint entirely
-            // so fet-cl is free to pick any room from the full Rooms_List.
+            // Prefer rooms that fit the student count; if none do, fall back to
+            // all assigned rooms so FET still has concrete guidance (rather than
+            // searching the full room list and potentially finding nothing).
             $totalStudents = (int) $a->students->sum('number_of_student');
             $fitting = $totalStudents > 0
                 ? $rooms->filter(fn($sp) => (int) ($sp->capacity ?? 0) >= $totalStudents)
                 : $rooms;
-            if ($totalStudents > 0 && $fitting->isEmpty()) {
-                continue;
-            }
             $emitRooms = $fitting->isNotEmpty() ? $fitting : $rooms;
 
             foreach ($this->activityIdMap[$a->id] ?? [] as $emitId) {
@@ -672,6 +709,14 @@ class FetXmlBuilder
             }
         }
 
+        $this->w->endElement();
+    }
+
+    // ─── Independent groups (FET 7.0+) ───────────────────────────────────
+
+    private function emitIndependentGroups(): void
+    {
+        $this->w->startElement('Independent_Groups_List');
         $this->w->endElement();
     }
 

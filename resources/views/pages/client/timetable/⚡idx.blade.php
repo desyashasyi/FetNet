@@ -311,6 +311,7 @@ new #[Layout('layouts.client')] class extends Component
         :semester-id="$semesterId" />
 
     <livewire:pages::client.timetable.solver-log-card />
+    <livewire:pages::client.timetable.compile-errors-sheet />
 
     <x-modal wire:model="publishModal" title="Publish Timetable" box-class="!max-w-sm">
         <p class="text-base-content/70 text-sm">Publish this timetable so all programs can see it?</p>

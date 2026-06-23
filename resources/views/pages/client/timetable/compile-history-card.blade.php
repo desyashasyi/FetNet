@@ -27,8 +27,26 @@ new class extends Component
         unset($this->compiles);
         if (($payload['status'] ?? '') === 'success') {
             $this->success('FET file ready. Download from the table below.', position: 'toast-top toast-center');
+            return;
+        }
+
+        $message = $payload['message'] ?? '';
+        $decoded = rescue(fn() => json_decode($message, true), null, false);
+
+        if (is_array($decoded) && ($decoded['type'] ?? '') === 'incomplete_activities') {
+            $this->dispatch('open-compile-errors', ...$decoded);
         } else {
-            $this->error('Compile failed: ' . ($payload['message'] ?? 'unknown error'), position: 'toast-top toast-center');
+            $this->error('Compile failed: ' . $message, position: 'toast-top toast-center');
+        }
+    }
+
+    public function showErrors(int $compileId): void
+    {
+        $c = \App\Models\FetNet\FetCompile::find($compileId);
+        if (! $c) return;
+        $decoded = rescue(fn() => json_decode($c->message, true), null, false);
+        if (is_array($decoded) && ($decoded['type'] ?? '') === 'incomplete_activities') {
+            $this->dispatch('open-compile-errors', ...$decoded);
         }
     }
 
@@ -105,7 +123,20 @@ new class extends Component
                                 @if($c->status === 'success')
                                     <x-badge value="success" class="badge-success badge-sm" />
                                 @elseif($c->status === 'failed')
-                                    <x-badge value="failed" class="badge-error badge-sm" tooltip="{{ $c->message }}" />
+                                    @php
+                                        $errData = rescue(fn() => json_decode($c->message, true), null, false);
+                                        $isIncomplete = is_array($errData) && ($errData['type'] ?? '') === 'incomplete_activities';
+                                    @endphp
+                                    @if($isIncomplete)
+                                        <button wire:click="showErrors({{ $c->id }})"
+                                                class="badge badge-error badge-sm gap-1 cursor-pointer hover:badge-outline">
+                                            <x-icon name="o-exclamation-triangle" class="w-3 h-3" />
+                                            {{ $errData['count'] }} incomplete {{ $errData['count'] === 1 ? 'activity' : 'activities' }}
+                                        </button>
+                                    @else
+                                        <x-badge value="failed" class="badge-error badge-sm"
+                                                 tooltip="{{ $c->message }}" />
+                                    @endif
                                 @else
                                     <x-badge value="pending" class="badge-warning badge-sm" />
                                 @endif

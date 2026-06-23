@@ -9,11 +9,10 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Mary\Traits\Toast;
 
 new #[Layout('layouts.client')] class extends Component
 {
-    use WithPagination, Toast, HasProgramSemester;
+    use WithPagination, HasProgramSemester;
 
     public string $search          = '';
     public string $view            = 'all';
@@ -72,14 +71,6 @@ new #[Layout('layouts.client')] class extends Component
     public function updatedView(): void            { $this->resetPage(); }
     public function updatedSubjectSemester(): void { $this->resetPage(); }
 
-    /** Toggle the "not yet plotted" filter; viewing them only makes sense in the list view. */
-    public function toggleUnassigned(): void
-    {
-        $this->unassignedOnly = ! $this->unassignedOnly;
-        $this->view = 'all';
-        $this->resetPage();
-    }
-
     /**
      * Picking a program from the "needs space" selector filters the activity list to that
      * program AND restricts it to activities without a space; clearing it resets both.
@@ -117,9 +108,8 @@ new #[Layout('layouts.client')] class extends Component
             ->mapWithKeys(fn($p) => [$p->id => $p->abbrev])
             ->toArray();
 
-        // Activities with no space yet, grouped by program — drives the "X belum diplot"
-        // sign and the "study programs that still need space" quick selector. Scoped to the
-        // whole client (not the current program filter) so every program in need is listed.
+        // Activities with no space yet, grouped by program — drives the "Prodi belum diplot"
+        // quick selector. Scoped to the whole client (not the current program filter).
         $unassignedByProgram = Activity::query()
             ->when($programIds, fn($q) => $q->whereIn('program_id', $programIds), fn($q) => $q->whereRaw('0=1'))
             ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) => $p->where('semester_id', $this->semesterId)))
@@ -128,7 +118,6 @@ new #[Layout('layouts.client')] class extends Component
             ->groupBy('program_id')
             ->pluck('c', 'program_id');
 
-        $unassignedTotal          = (int) $unassignedByProgram->sum();
         $unassignedProgramOptions = collect($unassignedByProgram)
             ->map(fn($c, $pid) => ['id' => $pid, 'name' => ($programMap[$pid] ?? '?') . " ({$c})"])
             ->values()->toArray();
@@ -146,7 +135,7 @@ new #[Layout('layouts.client')] class extends Component
                     ->orWhere('code', 'like', "%{$this->search}%"))
                 ->when($this->subjectSemester, fn($q) => $q->where('semester', $this->subjectSemester))
                 ->orderBy('semester')->orderBy('code')
-                ->paginate(6)
+                ->paginate(10)
                 ->through(fn($s) => tap($s, fn($item) => [
                     $item->program_abbrev = $programMap[$s->program_id] ?? '?',
                 ]));
@@ -167,7 +156,7 @@ new #[Layout('layouts.client')] class extends Component
                                 ->orWhere('code', 'like', "%{$this->search}%"))))
                 ->when($this->subjectSemester, fn($q) => $q->where('s.semester', $this->subjectSemester))
                 ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id')
-                ->paginate(6)
+                ->paginate(10)
                 ->through(fn($a) => tap($a, fn($item) => [
                     $item->subject_nm     = $a->planning?->subject?->code . ' — ' . $a->planning?->subject?->name,
                     $item->type_nm        = $a->type?->name ?? '-',
@@ -186,7 +175,7 @@ new #[Layout('layouts.client')] class extends Component
             ->distinct()->orderBy('semester')->pluck('semester')
             ->map(fn($s) => ['id' => $s, 'name' => "Semester {$s}"])->values()->toArray();
 
-        return compact('subjects', 'activities', 'unassignedTotal', 'unassignedProgramOptions', 'subjectSemesterOptions');
+        return compact('subjects', 'activities', 'unassignedProgramOptions', 'subjectSemesterOptions');
     }
 }; ?>
 
@@ -217,19 +206,13 @@ new #[Layout('layouts.client')] class extends Component
                       wire:click="$set('view','all')" />
         </div>
 
-        {{-- Sign: how many activities still have no space, click to show only those. --}}
-        @if($unassignedTotal > 0 || $unassignedOnly)
-            <x-button wire:click="toggleUnassigned" icon="o-exclamation-triangle"
-                      class="btn-sm {{ $unassignedOnly ? 'btn-warning' : 'btn-ghost border border-warning text-warning' }}">
-                {{ $unassignedTotal }} belum diplot
-            </x-button>
-        @endif
-
         {{-- Quick picker: study programs that still have activities without a space. --}}
         @if(count($unassignedProgramOptions))
-            <x-choices single searchable wire:model.live="unassignedProgramId"
-                       :options="$unassignedProgramOptions" placeholder="Prodi belum diplot…"
-                       clearable class="w-56" />
+            <div class="w-56 shrink-0">
+                <x-choices single searchable wire:model.live="unassignedProgramId"
+                           :options="$unassignedProgramOptions" placeholder="Prodi belum diplot…"
+                           clearable />
+            </div>
         @endif
     </div>
 

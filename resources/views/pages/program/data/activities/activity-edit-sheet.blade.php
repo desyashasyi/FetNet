@@ -173,7 +173,7 @@ new class extends Component {
             ->where("program_id", $program->id)
             ->pluck("teacher_id");
 
-        $this->teacherOptions = Teacher::where(
+        $results = Teacher::where(
             fn($q) => $q
                 ->whereIn("program_id", $clusterProgramIds)
                 ->orWhereIn("id", $guestIds),
@@ -181,18 +181,30 @@ new class extends Component {
             ->where(
                 fn($q) => $q
                     ->where("name", "like", "%{$value}%")
-                    ->orWhere("code", "like", "%{$value}%")
-                    ->orWhereIn("id", $this->teacherIds),
+                    ->orWhere("code", "like", "%{$value}%"),
             )
             ->orderBy("name")
             ->limit(20)
-            ->get()
+            ->get();
+
+        // Always include already-selected teachers so their names appear in the picker
+        // even when they fall outside the LIMIT 20 alphabetical window.
+        if ($this->teacherIds) {
+            $missing = array_diff($this->teacherIds, $results->pluck('id')->all());
+            if ($missing) {
+                Teacher::whereIn('id', $missing)->get()->each(fn($t) => $results->push($t));
+            }
+        }
+
+        $this->teacherOptions = $results
             ->map(
                 fn($t) => [
                     "id" => $t->id,
                     "name" => ($t->code ? "{$t->code} | " : "") . $t->name,
                 ],
             )
+            ->unique('id')
+            ->values()
             ->toArray();
     }
 
@@ -351,8 +363,15 @@ new class extends Component {
     public function save(): void
     {
         $this->validate([
-            "subject_id" => "required|exists:fetnet_subject,id",
+            "subject_id"    => "required|exists:fetnet_subject,id",
+            "teacherIds"    => "required|array|min:1",
+            "studentIds"    => "required|array|min:1",
             "extraDuration" => "integer|min:0|max:8",
+        ], [
+            "teacherIds.required" => "At least one teacher must be selected.",
+            "teacherIds.min"      => "At least one teacher must be selected.",
+            "studentIds.required" => "At least one student group must be selected.",
+            "studentIds.min"      => "At least one student group must be selected.",
         ]);
 
         $program = $this->program();
@@ -400,6 +419,12 @@ new class extends Component {
                 position: "toast-top toast-center",
             );
 
+        // Clear option arrays before closing — they are not needed in the closed state
+        // and would bloat the Livewire snapshot sent back to the browser.
+        $this->subjectOptions = [];
+        $this->teacherOptions = [];
+        $this->studentOptions = [];
+
         $this->modal = false;
         $this->dispatch("activity-changed");
     }
@@ -433,15 +458,21 @@ new class extends Component {
                             class="text-xs text-primary hover:underline mt-1 block">Manage tags</button>
                 </div>
             </div>
-            <x-choices label="Teachers" searchable :search-function="'searchTeachers'"
-                       wire:model="teacherIds" :options="$teacherOptions" placeholder="Select teachers..." />
+            <div>
+                <x-choices label="Teachers" searchable :search-function="'searchTeachers'"
+                           wire:model="teacherIds" :options="$teacherOptions" placeholder="Select teachers..." />
+                @error('teacherIds') <p class="text-error text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
             @if(count($batchOptions))
             <x-choices label="Batch (filter groups)" single searchable wire:model.live="batchFilter"
                        :options="$batchOptions" placeholder="— All batches —" clearable
                        hint="Pick a batch to narrow the groups below" />
             @endif
-            <x-choices label="Student Groups" searchable :search-function="'searchStudents'"
-                       wire:model="studentIds" :options="$studentOptions" placeholder="Select groups..." />
+            <div>
+                <x-choices label="Student Groups" searchable :search-function="'searchStudents'"
+                           wire:model="studentIds" :options="$studentOptions" placeholder="Select groups..." />
+                @error('studentIds') <p class="text-error text-xs mt-1">{{ $message }}</p> @enderror
+            </div>
             <x-slot:actions>
                 <x-button label="Cancel" icon="o-x-circle"     wire:click="$set('modal', false)" />
                 <x-button label="Save"   icon="o-check-circle" type="submit" class="btn-primary" spinner="save" />
