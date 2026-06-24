@@ -36,10 +36,10 @@ class ActivityStudentPickerTest extends TestCase
 
         $this->assertContains('2026 / TE01-1', $labels);       // group
         $this->assertContains('2026 / TE01-1 / A', $labels);   // sub-group
-        $this->assertNotContains('2026', $labels);             // batch not selectable
+        $this->assertContains('2026', $labels);                // batch (root) is selectable as a student set
         $this->assertContains($group->id, $ids);
         $this->assertContains($sub->id, $ids);
-        $this->assertNotContains($batch->id, $ids);
+        $this->assertContains($batch->id, $ids);
     }
 
     public function test_subgroups_appear_even_with_many_groups(): void

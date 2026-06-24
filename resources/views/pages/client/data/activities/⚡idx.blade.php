@@ -83,6 +83,17 @@ new #[Layout('layouts.client')] class extends Component
         $this->resetPage();
     }
 
+    /**
+     * Clickable "N belum diplot" sign: flip the unassigned-only filter and switch to the
+     * All view so the user immediately sees the activities still missing a space.
+     */
+    public function toggleUnassigned(): void
+    {
+        $this->unassignedOnly = ! $this->unassignedOnly;
+        $this->view           = 'all';
+        $this->resetPage();
+    }
+
     public function openAssignSpace(int $activityId): void
     {
         $this->dispatch('open-assign-space', activityId: $activityId);
@@ -121,6 +132,10 @@ new #[Layout('layouts.client')] class extends Component
         $unassignedProgramOptions = collect($unassignedByProgram)
             ->map(fn($c, $pid) => ['id' => $pid, 'name' => ($programMap[$pid] ?? '?') . " ({$c})"])
             ->values()->toArray();
+
+        // Total activities still without a space across the client — drives the "N belum
+        // diplot" sign that toggles the unassigned-only filter.
+        $unassignedTotal = (int) collect($unassignedByProgram)->sum();
 
         $subjects = Subject::with(['activities' => fn($q) => $q
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) =>
@@ -175,7 +190,7 @@ new #[Layout('layouts.client')] class extends Component
             ->distinct()->orderBy('semester')->pluck('semester')
             ->map(fn($s) => ['id' => $s, 'name' => "Semester {$s}"])->values()->toArray();
 
-        return compact('subjects', 'activities', 'unassignedProgramOptions', 'subjectSemesterOptions');
+        return compact('subjects', 'activities', 'unassignedProgramOptions', 'unassignedTotal', 'subjectSemesterOptions');
     }
 }; ?>
 
@@ -205,6 +220,15 @@ new #[Layout('layouts.client')] class extends Component
             <x-button label="All"        class="btn-sm join-item {{ $view === 'all'     ? 'btn-primary' : 'btn-ghost' }}"
                       wire:click="$set('view','all')" />
         </div>
+
+        {{-- Sign: total activities still without a space. Click to toggle the filter. --}}
+        @if($unassignedTotal > 0)
+            <x-button wire:click="toggleUnassigned"
+                      icon="o-exclamation-triangle"
+                      label="{{ $unassignedTotal }} belum diplot"
+                      class="btn-sm {{ $unassignedOnly ? 'btn-warning' : 'btn-ghost text-warning' }}"
+                      tooltip="Show only activities without a space" />
+        @endif
 
         {{-- Quick picker: study programs that still have activities without a space. --}}
         @if(count($unassignedProgramOptions))
