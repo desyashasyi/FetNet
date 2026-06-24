@@ -6,6 +6,7 @@ use App\Livewire\Concerns\HasProgramSemester;
 use App\Models\FetNet\Client;
 use App\Models\FetNet\FetCompile;
 use App\Models\FetNet\TimetableSlot;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
@@ -19,6 +20,7 @@ new #[Layout('layouts.client')] class extends Component
     public ?int $activeSolveCompileId = null;
     public bool $publishModal = false;
     public bool $unpublishModal = false;
+    public bool $clearFetModal = false;
     /** True from clicking "Compile FET" until FetCompiledEvent arrives — drives the progress bar. */
     public bool $compiling = false;
 
@@ -220,6 +222,39 @@ new #[Layout('layouts.client')] class extends Component
         $this->unpublishModal = false;
         $this->warning('Timetable unpublished.', position: 'toast-top toast-center');
     }
+
+    /**
+     * Delete all generated .fet artifacts for this client — the compile inputs under
+     * fet/<clientId>/ and every compile's solver-output file — then null the stored
+     * paths so the UI stops offering broken downloads. Saved timetable slots in the
+     * database are kept; the user can recompile at any time. Useful after a builder
+     * fix to purge stale files that still carry the old XML.
+     */
+    public function clearFet(): void
+    {
+        $cid = $this->clientId;
+        if (! $cid) {
+            $this->error('Client not found.', position: 'toast-top toast-center');
+            return;
+        }
+
+        Storage::disk('local')->deleteDirectory("fet/{$cid}");
+
+        foreach (FetCompile::where('client_id', $cid)->get() as $c) {
+            if ($c->solver_result_path) {
+                Storage::disk('local')->delete($c->solver_result_path);
+            }
+            Storage::disk('local')->deleteDirectory("fet-solve/{$c->id}");
+        }
+
+        FetCompile::where('client_id', $cid)->update(['path' => null, 'solver_result_path' => null]);
+
+        $this->clearFetModal = false;
+        unset($this->lastSuccess, $this->hasPending, $this->hasSlots,
+              $this->downloadResultUrl, $this->isPublished, $this->viewTimetableUrl);
+        $this->primeActiveSolve();
+        $this->success('All .fet files cleared. Recompile to regenerate.', position: 'toast-top toast-center');
+    }
 }; ?>
 
 <div>
@@ -249,6 +284,11 @@ new #[Layout('layouts.client')] class extends Component
                   :disabled="! $this->lastSuccess"
                   tooltip="{{ $this->lastSuccess ? 'Run solver on the latest compiled file' : 'Compile a FET file first' }}"
                   wire:click="generate" />
+
+        <x-button label="Clear .fet" icon="o-trash"
+                  class="btn-ghost btn-sm text-error"
+                  tooltip="Delete all generated .fet files for this client"
+                  wire:click="$set('clearFetModal', true)" />
     </div>
 
     {{-- Compile progress: indeterminate bar shown while a compile is pending; it resolves
@@ -326,6 +366,18 @@ new #[Layout('layouts.client')] class extends Component
         <x-slot:actions>
             <x-button label="Cancel" icon="o-x-circle" wire:click="$set('unpublishModal', false)" />
             <x-button label="Unpublish" icon="o-eye-slash" class="btn-warning" wire:click="unpublish" />
+        </x-slot:actions>
+    </x-modal>
+
+    <x-modal wire:model="clearFetModal" title="Clear .fet Files" box-class="!max-w-sm">
+        <p class="text-base-content/70 text-sm">
+            Delete all generated .fet files (compile inputs and solver outputs) for this client?
+            Saved timetables are kept — you can recompile anytime.
+        </p>
+        <x-slot:actions>
+            <x-button label="Cancel" icon="o-x-circle" wire:click="$set('clearFetModal', false)" />
+            <x-button label="Clear all .fet" icon="o-trash" class="btn-error"
+                      wire:click="clearFet" spinner="clearFet" />
         </x-slot:actions>
     </x-modal>
 </div>
