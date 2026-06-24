@@ -226,6 +226,12 @@ new class extends Component
             </div>
         @endif
 
+        <div x-data="{ q: '' }">
+        <div class="mb-3">
+            <input type="text" x-model="q"
+                   placeholder="Search activities — FET Id, DB Id, subject code, teacher…"
+                   class="input input-bordered input-sm w-full max-w-md" />
+        </div>
         <x-tabs selected="log-tab">
             <x-tab name="log-tab"
                    label="Live Log"
@@ -272,7 +278,8 @@ new class extends Component
                             </thead>
                             <tbody>
                                 @foreach($report['issues'] as $i)
-                                    <tr class="align-top">
+                                    @php($hay = strtolower(trim(($i['emit_id'] ?? '') . ' ' . ($i['activity_id'] ?? '') . ' ' . ($i['subject'] ?? '') . ' ' . ($i['teacher'] ?? ''))))
+                                    <tr class="align-top" x-show="q === '' || @js($hay).includes(q.toLowerCase().trim())">
                                         <td class="text-xs font-mono">{{ $i['emit_id'] ?? '—' }}</td>
                                         <td class="text-xs font-mono">{{ $i['activity_id'] ?? '—' }}</td>
                                         <td class="text-xs">{{ $i['subject'] ?? '—' }}</td>
@@ -309,7 +316,8 @@ new class extends Component
                             </thead>
                             <tbody>
                                 @foreach($report['placed'] as $p)
-                                    <tr>
+                                    @php($hay = strtolower(trim(($p['emit_id'] ?? '') . ' ' . ($p['activity_id'] ?? '') . ' ' . ($p['subject'] ?? '') . ' ' . ($p['teacher'] ?? ''))))
+                                    <tr x-show="q === '' || @js($hay).includes(q.toLowerCase().trim())">
                                         <td class="text-xs font-mono">{{ $p['emit_id'] }}</td>
                                         <td class="text-xs font-mono">{{ $p['activity_id'] ?? '—' }}</td>
                                         <td class="text-xs">{{ $p['subject'] ?? '—' }}</td>
@@ -346,7 +354,8 @@ new class extends Component
                             </thead>
                             <tbody>
                                 @foreach($report['unplaced'] as $u)
-                                    <tr class="align-top">
+                                    @php($hay = strtolower(trim(($u['emit_id'] ?? '') . ' ' . ($u['activity_id'] ?? '') . ' ' . ($u['subject'] ?? '') . ' ' . ($u['teacher'] ?? ''))))
+                                    <tr class="align-top" x-show="q === '' || @js($hay).includes(q.toLowerCase().trim())">
                                         <td class="text-xs font-mono">{{ $u['emit_id'] }}</td>
                                         <td class="text-xs font-mono">{{ $u['activity_id'] ?? '—' }}</td>
                                         <td class="text-xs">{{ $u['subject'] ?? '—' }}</td>
@@ -398,6 +407,7 @@ new class extends Component
                 @endif
             </x-tab>
         </x-tabs>
+        </div>
 
         @if($statusMessage)
             <p class="text-xs text-base-content/60 mt-2">{{ $statusMessage }}</p>

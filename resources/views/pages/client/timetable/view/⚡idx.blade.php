@@ -425,11 +425,18 @@ new #[Layout('layouts.print')] class extends Component
                 </tr>
             </thead>
             <tbody>
-                        @foreach($this->hourLabels as $hIdx => $hour)
+                @php($rowspanSkip = array_fill(0, count($this->dayLabels), 0))
+                @foreach($this->hourLabels as $hIdx => $hour)
                     <tr class="align-top">
                         @foreach($this->dayLabels as $dIdx => $day)
+                            @if($rowspanSkip[$dIdx] > 0)
+                                @php($rowspanSkip[$dIdx]--)
+                            @else
                             @php($cell = $this->gridIndex[$dIdx + 1][$hIdx + 1] ?? [])
-                            <td class="border border-base-300 p-1.5 align-top min-w-28">
+                            @php($remaining = count($this->hourLabels) - $hIdx)
+                            @php($span = $cell ? max(1, min((int) collect($cell)->max('duration'), $remaining)) : 1)
+                            @php($rowspanSkip[$dIdx] = $span - 1)
+                            <td class="border border-base-300 p-1.5 align-top min-w-28" @if($span > 1) rowspan="{{ $span }}" @endif>
                                 @foreach($cell as $slot)
                                     @php($slotDur = (int) ($slot->duration ?? 1))
                                     @php($timeRange = $this->slotTimeRange($hIdx + 1, $slotDur))
@@ -480,6 +487,7 @@ new #[Layout('layouts.print')] class extends Component
                                     </div>
                                 @endforeach
                             </td>
+                            @endif
                         @endforeach
                     </tr>
                 @endforeach
