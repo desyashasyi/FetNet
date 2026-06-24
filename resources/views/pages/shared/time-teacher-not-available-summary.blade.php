@@ -1,10 +1,14 @@
 <?php
 
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Reactive;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new class extends Component
 {
+    use WithPagination;
+
     #[Reactive] public array $rows           = [];
     #[Reactive] public array $dayLabels      = [];
     #[Reactive] public array $slotLabels     = [];
@@ -12,23 +16,22 @@ new class extends Component
     #[Reactive] public bool  $showProgramCol = false;
     #[Reactive] public bool  $canEdit        = false;
 
-    /** Current page for the in-memory teacher pager (10 per page). */
-    public int $page = 1;
-
     /** Live teacher-name search, owned by the parent page (rendered in its filter row). */
     #[Reactive] public string $search = '';
 
     private const PER_PAGE = 10;
-
-    public function prevPage(): void { if ($this->page > 1) $this->page--; }
-    public function nextPage(int $lastPage): void { if ($this->page < $lastPage) $this->page++; }
 
     public function edit(int $teacherId): void
     {
         $this->dispatch('open-not-available-edit', teacherId: $teacherId);
     }
 
-    /** Filter by name, sort alphabetically, and slice to the current page (10 per page). */
+    /**
+     * Filter by name, sort alphabetically, then wrap the slice in a LengthAwarePaginator
+     * so the table uses Livewire's standard pagination control (10 per page). The rows
+     * are an in-memory array fed from the parent, so we page the collection by hand and
+     * let WithPagination track the current page in the query string.
+     */
     public function with(): array
     {
         $term = mb_strtolower(trim($this->search));
@@ -40,12 +43,20 @@ new class extends Component
             ->sortBy(fn($r) => mb_strtolower($r['teacher'] ?? ''), SORT_NATURAL)
             ->values();
 
+        $perPage  = self::PER_PAGE;
         $total    = $sorted->count();
-        $lastPage = $total > 0 ? (int) ceil($total / self::PER_PAGE) : 1;
-        $page     = max(1, min($this->page, $lastPage));
-        $pageRows = $sorted->slice(($page - 1) * self::PER_PAGE, self::PER_PAGE)->values()->all();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page     = min(max(1, (int) $this->getPage('page')), $lastPage);
 
-        return compact('pageRows', 'total', 'lastPage', 'page');
+        $teachers = new LengthAwarePaginator(
+            $sorted->slice(($page - 1) * $perPage, $perPage)->values(),
+            $total,
+            $perPage,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page']
+        );
+
+        return compact('teachers');
     }
 }; ?>
 
@@ -64,7 +75,7 @@ new class extends Component
                 </tr>
             </thead>
             <tbody>
-                @foreach($pageRows as $row)
+                @foreach($teachers as $row)
                     <tr wire:key="narow-{{ $row['id'] }}" class="border-b border-base-100 hover:bg-base-300/40">
                         <td class="py-2">{{ $row['teacher'] }}</td>
                         @if($showProgramCol)
@@ -141,16 +152,9 @@ new class extends Component
             </tbody>
         </table>
 
-        @if($lastPage > 1)
-            <div class="flex items-center justify-between mt-3">
-                <span class="text-sm text-base-content/40">{{ $total }} teachers</span>
-                <div class="join">
-                    <x-button class="btn-sm join-item" icon="o-chevron-left"
-                              wire:click="prevPage" :disabled="$page <= 1" />
-                    <span class="join-item btn btn-sm btn-ghost pointer-events-none">{{ $page }} / {{ $lastPage }}</span>
-                    <x-button class="btn-sm join-item" icon="o-chevron-right"
-                              wire:click="nextPage({{ $lastPage }})" :disabled="$page >= $lastPage" />
-                </div>
+        @if($teachers->hasPages())
+            <div class="mt-3">
+                {{ $teachers->links() }}
             </div>
         @endif
     </x-card>

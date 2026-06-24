@@ -32,39 +32,42 @@ class TeacherNotAvailablePaginationTest extends TestCase
     {
         $c = Livewire::test(self::COMPONENT, ['rows' => $this->rows(23), 'numberOfDays' => 5]);
 
-        $c->assertSet('page', 1)
-            ->assertViewHas('total', 23)
-            ->assertViewHas('lastPage', 3);
+        // First page holds 10, alphabetically first; paginator reports the totals.
+        $p1 = $c->viewData('teachers');
+        $this->assertSame(23, $p1->total());
+        $this->assertSame(3, $p1->lastPage());
+        $this->assertSame(1, $p1->currentPage());
+        $this->assertCount(10, $p1->items());
+        $this->assertSame('[T1] Teacher 01', $p1->items()[0]['teacher']);
 
-        // First page holds 10, alphabetically first.
-        $page1 = $c->viewData('pageRows');
-        $this->assertCount(10, $page1);
-        $this->assertSame('[T1] Teacher 01', $page1[0]['teacher']);
-
-        // Second page continues in order.
-        $c->call('nextPage', 3)->assertSet('page', 2);
-        $this->assertSame('[T11] Teacher 11', $c->viewData('pageRows')[0]['teacher']);
+        // Second page continues in order (Livewire pagination via gotoPage).
+        $c->call('gotoPage', 2);
+        $this->assertSame('[T11] Teacher 11', $c->viewData('teachers')->items()[0]['teacher']);
 
         // Last page holds the remainder.
-        $c->call('nextPage', 3)->assertSet('page', 3);
-        $this->assertCount(3, $c->viewData('pageRows'));
+        $c->call('gotoPage', 3);
+        $this->assertCount(3, $c->viewData('teachers')->items());
     }
 
     public function test_no_pager_needed_for_ten_or_fewer(): void
     {
-        Livewire::test(self::COMPONENT, ['rows' => $this->rows(10), 'numberOfDays' => 5])
-            ->assertViewHas('lastPage', 1);
+        $p = Livewire::test(self::COMPONENT, ['rows' => $this->rows(10), 'numberOfDays' => 5])
+            ->viewData('teachers');
+
+        $this->assertSame(1, $p->lastPage());
+        $this->assertFalse($p->hasPages());
     }
 
     public function test_search_filters_by_teacher_name(): void
     {
-        $c = Livewire::test(self::COMPONENT, [
+        $p = Livewire::test(self::COMPONENT, [
             'rows'         => $this->rows(23),
             'numberOfDays' => 5,
             'search'       => 'Teacher 17',
-        ]);
+        ])->viewData('teachers');
 
-        $c->assertViewHas('total', 1)->assertViewHas('lastPage', 1);
-        $this->assertSame('[T17] Teacher 17', $c->viewData('pageRows')[0]['teacher']);
+        $this->assertSame(1, $p->total());
+        $this->assertSame(1, $p->lastPage());
+        $this->assertSame('[T17] Teacher 17', $p->items()[0]['teacher']);
     }
 }
