@@ -62,7 +62,10 @@ new class extends Component
 
 <div>
 <x-card>
-    <div class="overflow-x-auto">
+    {{-- No overflow wrapper here: an overflow-x container also clips overflow-y (per the
+         CSS spec), which would hide the hover popover that escapes the cell. The table is
+         w-full so it fits; very wide tables fall back to page-level horizontal scroll. --}}
+    <div>
         <table class="table table-zebra w-full">
             <thead>
                 <tr class="border-b border-base-200">
