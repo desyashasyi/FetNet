@@ -117,7 +117,7 @@ new #[Layout('layouts.program')] class extends Component
     {
         $program = $this->program();
 
-        $subjects = Subject::with(['activities' => fn($q) => $q
+        $subjectQuery = Subject::with(['activities' => fn($q) => $q
                 ->when($this->semesterId, fn($q) => $q->whereHas('planning', fn($p) =>
                     $p->where('semester_id', $this->semesterId)))
                 ->when($this->teacherFilterId, fn($q) => $q->whereHas('teachers',
@@ -143,10 +143,11 @@ new #[Layout('layouts.program')] class extends Component
                         fn($t) => $t->where('fetnet_student.id', $this->studentFilterId))
                     ->when($this->semesterId, fn($a) => $a->whereHas('planning',
                         fn($p) => $p->where('semester_id', $this->semesterId)))))
-                ->orderBy('semester')->orderBy('code')
-                ->paginate(6);
+                ->orderBy('semester')->orderBy('code');
 
-        $activities = Activity::query()
+        $subjects = $subjectQuery->paginate(6);
+
+        $activityQuery = Activity::query()
                 ->select('fetnet_activity.*')
                 ->with(['planning.subject', 'type', 'teachers', 'students'])
                 // Join the plan + subject so the All view sorts by semester then subject code
@@ -163,14 +164,21 @@ new #[Layout('layouts.program')] class extends Component
                     fn($t) => $t->where('fetnet_teacher.id', $this->teacherFilterId)))
                 ->when($this->studentFilterId, fn($q) => $q->whereHas('students',
                     fn($t) => $t->where('fetnet_student.id', $this->studentFilterId)))
-                ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id')
-                ->paginate(6)
+                ->orderBy('s.semester')->orderBy('s.code')->orderBy('fetnet_activity.id');
+
+        $activities = $activityQuery->paginate(6)
                 ->through(fn($a) => tap($a, fn($item) => [
                     $item->subject_nm  = $a->planning?->subject?->code . ' — ' . $a->planning?->subject?->name,
                     $item->type_nm     = $a->type?->name ?? '-',
                     $item->teachers_nm = $a->teachers->pluck('code')->filter()->implode(', ') ?: '-',
                     $item->students_nm = $a->students->pluck('name')->implode(', ') ?: '-',
                 ]));
+
+        // Total SKS across the full filtered set (all pages), matching the active view:
+        // By-Subject sums each subject's credit once; All sums each activity's subject credit.
+        $totalSks = $this->view === 'subject'
+            ? (int) (clone $subjectQuery)->sum('credit')
+            : (int) (clone $activityQuery)->sum('s.credit');
 
         // Distinct curriculum semesters present in this program's subjects (1–8).
         $subjectSemesterOptions = $program
@@ -207,6 +215,7 @@ new #[Layout('layouts.program')] class extends Component
         return [
             'subjects'                => $subjects,
             'activities'              => $activities,
+            'totalSks'                => $totalSks,
             'programId'               => $program?->id,
             'subjectSemesterOptions'  => $subjectSemesterOptions,
             'teacherOptions'          => $teacherOptions,
@@ -363,6 +372,12 @@ new #[Layout('layouts.program')] class extends Component
         </div>
     </x-card>
     @endif
+
+    {{-- Total SKS across the whole filtered set (all pages), for the active view. --}}
+    <div class="flex justify-end items-center gap-2 mt-3">
+        <span class="text-sm text-base-content/60">Total SKS</span>
+        <x-badge value="{{ $totalSks }}" class="badge-primary badge-lg" />
+    </div>
 
     <x-modal wire:model="delModal" title="Delete Activity" box-class="!max-w-sm">
         <p class="text-base-content/70 text-sm">Delete this activity? Teacher and student assignments will also be removed.</p>
