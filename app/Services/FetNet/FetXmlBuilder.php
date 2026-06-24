@@ -123,7 +123,6 @@ class FetXmlBuilder
         $this->emitActivityTags($tags);
         $this->emitTeachers($teachers, $subjects);
         $this->emitStudents($programs, $students);
-        $this->emitIndependentGroups();
         $this->emitActivities($activities, $programs);
         $this->emitBuildings($buildings);
         $this->emitRooms($spaces);
@@ -709,14 +708,6 @@ class FetXmlBuilder
             }
         }
 
-        $this->w->endElement();
-    }
-
-    // ─── Independent groups (FET 7.0+) ───────────────────────────────────
-
-    private function emitIndependentGroups(): void
-    {
-        $this->w->startElement('Independent_Groups_List');
         $this->w->endElement();
     }
 
