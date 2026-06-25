@@ -46,27 +46,10 @@ new #[Layout('layouts.client')] class extends Component
 
     public function with(): array
     {
-        $client = $this->client();
-        $report = ['programs' => [], 'rows' => []];
-
-        if ($client) {
-            $service = app(LecturerWorkloadReport::class);
-
-            // A selected program scopes the recap to everyone teaching in it (guests
-            // included); otherwise show the whole client's lecturers.
-            $program = $this->programId
-                ? Program::where('client_id', $client->id)->find($this->programId)
-                : null;
-
-            $report = $program
-                ? $service->forProgram($program, $this->semesterId)
-                : $service->forClient($client, $this->semesterId);
-        }
-
-        return [
-            'programs' => $report['programs'],
-            'rows'     => $report['rows'],
-        ];
+        // The recap itself is built inside the workload-table child from these ids — passing
+        // the (large, deeply nested) report array across the Livewire boundary dropped it,
+        // leaving the table empty. The child owns the query so the data always arrives.
+        return ['clientId' => $this->client()?->id];
     }
 }; ?>
 
@@ -87,11 +70,11 @@ new #[Layout('layouts.client')] class extends Component
     @if(! $semesterId)
         <x-alert title="Select a semester to view the workload recap."
                  icon="o-information-circle" class="alert-info" />
-    @elseif(count($rows) === 0)
-        <x-alert title="No lecturer workload found for this period."
-                 icon="o-information-circle" class="alert-info" />
     @else
         <livewire:pages::client.data.workload.workload-table
-            :programs="$programs" :rows="$rows" :key="'wt-' . $semesterId . '-' . ($programId ?? 'all')" />
+            :client-id="$clientId"
+            :program-id="$programId"
+            :semester-id="$semesterId"
+            :key="'wt-' . $semesterId . '-' . ($programId ?? 'all')" />
     @endif
 </div>

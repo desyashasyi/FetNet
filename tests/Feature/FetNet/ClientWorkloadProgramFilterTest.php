@@ -19,7 +19,7 @@ class ClientWorkloadProgramFilterTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const PAGE = 'pages::client.data.workload.idx';
+    private const TABLE = 'pages::client.data.workload.workload-table';
 
     public function test_program_selector_scopes_the_recap_to_that_program(): void
     {
@@ -37,17 +37,22 @@ class ClientWorkloadProgramFilterTest extends TestCase
         $this->teachIn($progA, $sem, 'AA101', $teachA);
         $this->teachIn($progB, $sem, 'BB101', $teachB);
 
-        // No filter: both lecturers appear.
-        $all = Livewire::actingAs($user)->test(self::PAGE)->set('semesterId', $sem->id);
-        $names = collect($all->viewData('rows'))->pluck('name');
-        $this->assertTrue($names->contains('Alice'));
-        $this->assertTrue($names->contains('Bob'));
+        // The workload-table child builds the recap itself from the ids it receives.
+        // No filter (whole client): both lecturers appear.
+        $all = Livewire::actingAs($user)->test(self::TABLE, [
+            'clientId' => $client->id, 'semesterId' => $sem->id,
+        ]);
+        $lecturers = collect($all->viewData('tableRows'))->pluck('lecturer')->implode('|');
+        $this->assertStringContainsString('Alice', $lecturers);
+        $this->assertStringContainsString('Bob', $lecturers);
 
         // Filtered to program A: only A's lecturer remains.
-        $filtered = $all->set('programId', $progA->id);
-        $namesA = collect($filtered->viewData('rows'))->pluck('name');
-        $this->assertTrue($namesA->contains('Alice'));
-        $this->assertFalse($namesA->contains('Bob'));
+        $filtered = Livewire::actingAs($user)->test(self::TABLE, [
+            'programId' => $progA->id, 'semesterId' => $sem->id,
+        ]);
+        $lecturersA = collect($filtered->viewData('tableRows'))->pluck('lecturer')->implode('|');
+        $this->assertStringContainsString('Alice', $lecturersA);
+        $this->assertStringNotContainsString('Bob', $lecturersA);
     }
 
     private function teachIn(Program $program, Semester $sem, string $code, Teacher $teacher): void

@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\FetNet\Client;
+use App\Models\FetNet\Program;
+use App\Services\FetNet\LecturerWorkloadReport;
 use Livewire\Component;
 
 /**
@@ -11,15 +14,12 @@ use Livewire\Component;
  */
 new class extends Component
 {
-    /** @var array<int, array{id:int, abbrev:string, name:string}> */
-    public array $programs = [];
-
-    /**
-     * @var array<int, array{teacher_id:int, name:string, code:?string,
-     *   perProgram: array<int, array{p1:int,p2:int,p1Detail:array,p2Detail:array}>,
-     *   total: array{p1:int,p2:int,p1Detail:array,p2Detail:array}}>
-     */
-    public array $rows = [];
+    /** Client context (client workload page); used when no programId is set. */
+    public ?int $clientId = null;
+    /** Program filter / program workload page; scopes the recap to that program. */
+    public ?int $programId = null;
+    /** Active semester whose period the recap covers. */
+    public ?int $semesterId = null;
 
     /** Current lecturer page (1-based). The table paginates lecturers 10 per page. */
     public int $page = 1;
@@ -30,18 +30,41 @@ new class extends Component
     public function nextPage(int $lastPage): void { if ($this->page < $lastPage) $this->page++; }
 
     /**
+     * Build the recap here (rather than receiving it as a prop) so the data always reaches
+     * the table — passing the large, deeply nested report array across the Livewire
+     * component boundary dropped it. A programId scopes to everyone teaching in that program
+     * (guests included); otherwise the whole client is recapped.
+     *
+     * @return array{programs:array,rows:array}
+     */
+    private function report(): array
+    {
+        $service = app(LecturerWorkloadReport::class);
+
+        if ($this->programId) {
+            $program = Program::find($this->programId);
+            return $program ? $service->forProgram($program, $this->semesterId) : ['programs' => [], 'rows' => []];
+        }
+
+        $client = $this->clientId ? Client::find($this->clientId) : null;
+        return $client ? $service->forClient($client, $this->semesterId) : ['programs' => [], 'rows' => []];
+    }
+
+    /**
      * Flatten each row into a uniform list of cells (one per program, then Total) so the
      * template can render every "P1-P2" hover cell with the same markup, then slice the
      * lecturer rows to the current page (10 per page).
      */
     public function with(): array
     {
+        ['programs' => $programs, 'rows' => $rows] = $this->report();
+
         $empty = ['p1' => 0, 'p2' => 0, 'p1Detail' => [], 'p2Detail' => []];
 
-        $allRows = array_map(function ($r) use ($empty) {
+        $allRows = array_map(function ($r) use ($empty, $programs) {
             $cells = array_map(
                 fn ($p) => $r['perProgram'][$p['id']] ?? $empty,
-                $this->programs,
+                $programs,
             );
             $cells[] = $r['total'];
 
@@ -49,14 +72,14 @@ new class extends Component
                 'lecturer' => $r['name'] . ($r['code'] ? " ({$r['code']})" : ''),
                 'cells'    => $cells,
             ];
-        }, $this->rows);
+        }, $rows);
 
         $total     = count($allRows);
         $lastPage  = $total > 0 ? (int) ceil($total / self::PER_PAGE) : 1;
         $page      = max(1, min($this->page, $lastPage));
         $tableRows = array_slice($allRows, ($page - 1) * self::PER_PAGE, self::PER_PAGE);
 
-        return compact('tableRows', 'total', 'lastPage', 'page');
+        return compact('programs', 'tableRows', 'total', 'lastPage', 'page');
     }
 }; ?>
 
@@ -110,6 +133,9 @@ new class extends Component
                                                                 <span class="text-base-content/50">
                                                                     — {{ count($d['classes']) ? implode(', ', $d['classes']) : 'tanpa kelas' }}
                                                                 </span>
+                                                                @if(! empty($d['co']))
+                                                                    <span class="text-secondary">· tandem: {{ implode(', ', $d['co']) }}</span>
+                                                                @endif
                                                             </div>
                                                         @endforeach
                                                     </div>
