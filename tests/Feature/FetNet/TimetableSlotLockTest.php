@@ -72,6 +72,19 @@ class TimetableSlotLockTest extends TestCase
         $this->assertStringContainsString('toggleLock(' . $slot->id . ')', $html);
     }
 
+    public function test_table_mode_shows_lock_column_in_default_view(): void
+    {
+        [$user, $sem, $slot] = $this->scaffold();
+
+        // Table mode + the default "grid" (All) view — the Lock column must be present,
+        // not only in the teacher view.
+        $html = Livewire::actingAs($user)->test(self::PAGE, ['sem' => $sem->id])
+            ->set('view', 'grid')->set('mode', 'table')
+            ->html();
+
+        $this->assertStringContainsString('toggleLock(' . $slot->id . ')', $html);
+    }
+
     public function test_cannot_lock_another_clients_slot(): void
     {
         [, $sem, $slot] = $this->scaffold();
