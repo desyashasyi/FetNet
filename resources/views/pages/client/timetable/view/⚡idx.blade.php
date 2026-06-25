@@ -418,9 +418,7 @@ new #[Layout('layouts.print')] class extends Component
                     <th class="w-32">Teacher</th>
                     <th>Class / Students</th>
                     <th class="w-40">Room</th>
-                    @if($view === 'teacher')
-                        <th class="w-20 text-center print:hidden">Lock</th>
-                    @endif
+                    <th class="w-20 text-center print:hidden">Lock</th>
                 </tr>
             </thead>
             <tbody>
@@ -438,23 +436,21 @@ new #[Layout('layouts.print')] class extends Component
                         <td class="text-sm">{{ $r['teacher'] }}</td>
                         <td class="text-sm">{{ $r['students'] }}</td>
                         <td class="text-sm font-mono">{{ $r['room'] }}</td>
-                        @if($view === 'teacher')
-                            <td class="text-center print:hidden whitespace-nowrap">
-                                @if($r['conflict'])
-                                    <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-error inline"
-                                            tooltip="Clashes with a teacher's not-available time" />
-                                @endif
-                                <x-button :icon="$r['locked'] ? 'o-lock-closed' : 'o-lock-open'"
-                                          class="btn-ghost btn-xs btn-square {{ $r['locked'] ? 'text-primary' : 'text-base-content/30' }}"
-                                          wire:click="toggleLock({{ $r['id'] }})"
-                                          spinner="toggleLock({{ $r['id'] }})"
-                                          :tooltip="$r['locked'] ? 'Locked — click to unlock' : 'Lock this slot in place'" />
-                            </td>
-                        @endif
+                        <td class="text-center print:hidden whitespace-nowrap">
+                            @if($r['conflict'])
+                                <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-error inline"
+                                        tooltip="Clashes with a teacher's not-available time" />
+                            @endif
+                            <x-button :icon="$r['locked'] ? 'o-lock-closed' : 'o-lock-open'"
+                                      class="btn-ghost btn-xs btn-square {{ $r['locked'] ? 'text-primary' : 'text-base-content/30' }}"
+                                      wire:click="toggleLock({{ $r['id'] }})"
+                                      spinner="toggleLock({{ $r['id'] }})"
+                                      :tooltip="$r['locked'] ? 'Locked — click to unlock' : 'Lock this slot in place'" />
+                        </td>
                     </tr>
                     @php($prevDay = $r['day'])
                 @empty
-                    <tr><td colspan="{{ $view === 'teacher' ? 8 : 7 }}" class="text-center text-sm text-base-content/40 py-6">
+                    <tr><td colspan="8" class="text-center text-sm text-base-content/40 py-6">
                         No slots in current filter. Pick a program, teacher, student, or room first.
                     </td></tr>
                 @endforelse
