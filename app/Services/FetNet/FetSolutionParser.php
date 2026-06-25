@@ -2,6 +2,7 @@
 
 namespace App\Services\FetNet;
 
+use App\Models\FetNet\ClientConfig;
 use App\Models\FetNet\Space;
 use Illuminate\Support\Facades\Storage;
 
@@ -49,7 +50,15 @@ class FetSolutionParser
         // Build name->1-based-index lookups from the source FET file in the same directory.
         $fetSource = $disk->exists($resultRelPath) ? @simplexml_load_string($disk->get($resultRelPath)) : null;
         $dayIndex  = $fetSource ? $this->buildPositionIndex($fetSource->Days_List?->Day ?? null, 'Name') : [];
-        $hourIndex = $fetSource ? $this->buildPositionIndex($fetSource->Hours_List?->Hour ?? null, 'Name') : [];
+
+        // Hour index must be the app's BOOKABLE-only index (matching TimetableSlot.hour_index
+        // and the UI hour labels), NOT the FET Hours_List position — the FET list now also
+        // contains the break hour, which would shift positions after lunch. Derive it from the
+        // client config; fall back to FET positions only when no config is available.
+        $hourIndex = $this->buildBookableHourIndex($clientId);
+        if (empty($hourIndex) && $fetSource) {
+            $hourIndex = $this->buildPositionIndex($fetSource->Hours_List?->Hour ?? null, 'Name');
+        }
 
         // emitId -> duration (hours) from the source Activities_List. The solution
         // (*_activities.xml) only carries the start Day/Hour, so the span comes from here.
@@ -102,6 +111,29 @@ class FetSolutionParser
         $base = preg_replace('/_data_and_timetable$/', '', $base);
         if (! $base) return null;
         return "{$dir}/{$base}_activities.xml";
+    }
+
+    /**
+     * Build a "hour start name -> 1-based BOOKABLE index" map from the client config, skipping
+     * break slots — this matches how FetXmlBuilder indexes bookable hours and how the app
+     * stores TimetableSlot.hour_index, independent of the break's position in the FET file.
+     *
+     * @return array<string, int>
+     */
+    private function buildBookableHourIndex(int $clientId): array
+    {
+        $config = ClientConfig::where('client_id', $clientId)->first();
+        $slots  = $config?->generateSlots() ?: [];
+
+        $map = [];
+        $idx = 0;
+        foreach ($slots as $slot) {
+            if ($slot['break'] ?? false) continue;
+            $idx++;
+            $name = explode('–', $slot['time'])[0] ?? null;
+            if ($name) $map[$name] = $idx;
+        }
+        return $map;
     }
 
     /**

@@ -39,6 +39,8 @@ class FetXmlBuilder
 
     /** Hour-name lookup by 1-based slot index. */
     private array $hourNames = [];
+    /** FET hour names that are break times (unavailable for everyone, on every day). */
+    private array $breakHourNames = [];
 
     /** Maps internal Teacher.id => FET teacher Name (= code or fallback). */
     private array $teacherKey = [];
@@ -202,21 +204,31 @@ class FetXmlBuilder
     private function emitHours(?ClientConfig $config): void
     {
         $slots = $config?->generateSlots() ?: [];
-        // Filter break entries: FET treats every slot as bookable; breaks become Not_Available.
-        $bookable = array_values(array_filter($slots, fn($s) => ! $s['break']));
 
-        // Fallback if config empty.
-        if (empty($bookable)) {
+        // Fallback if config empty: eight bookable hours, no break.
+        if (empty($slots)) {
             for ($i = 1; $i <= 8; $i++) {
-                $bookable[] = ['idx' => $i, 'time' => sprintf('%02d:00', 7 + $i - 1)];
+                $slots[] = ['idx' => $i, 'time' => sprintf('%02d:00–%02d:00', 7 + $i - 1, 7 + $i), 'break' => false];
             }
         }
 
+        // The break hour is INCLUDED in the Hours_List (in chronological order) so that the
+        // two halves of the day are not consecutive — a multi-hour activity therefore cannot
+        // span lunch. The break is then marked unavailable for everyone via ConstraintBreakTimes
+        // (emitted in emitTimeConstraints). Only bookable hours get the app's 1-based index in
+        // $hourNames (keeping every existing name-based constraint correct); break hour names
+        // are tracked separately for the break constraint.
+        $bookableIdx = 0;
         $this->w->startElement('Hours_List');
-        $this->w->writeElement('Number_of_Hours', (string) count($bookable));
-        foreach ($bookable as $i => $slot) {
-            $name = explode('–', $slot['time'])[0] ?? sprintf('%02d:00', 7 + $i);
-            $this->hourNames[$i + 1] = $name;
+        $this->w->writeElement('Number_of_Hours', (string) count($slots));
+        foreach ($slots as $slot) {
+            $name = explode('–', $slot['time'])[0] ?? '?';
+            if ($slot['break'] ?? false) {
+                $this->breakHourNames[] = $name;
+            } else {
+                $bookableIdx++;
+                $this->hourNames[$bookableIdx] = $name;
+            }
             $this->w->startElement('Hour');
             $this->w->writeElement('Name', $name);
             $this->w->writeElement('Long_Name', '');
@@ -473,6 +485,27 @@ class FetXmlBuilder
         $this->w->writeElement('Active', 'true');
         $this->w->writeElement('Comments', '');
         $this->w->endElement();
+
+        // Break: mark the configured break hour(s) unavailable for everyone, on every day.
+        // Because the break hour sits between the two halves of the day in Hours_List, this
+        // also prevents a multi-hour activity from spanning lunch (it would need consecutive
+        // available hours, and the break is not available).
+        if (! empty($this->breakHourNames) && ! empty($this->dayNames)) {
+            $this->w->startElement('ConstraintBreakTimes');
+            $this->w->writeElement('Weight_Percentage', '100');
+            $this->w->writeElement('Number_of_Break_Times', (string) (count($this->breakHourNames) * count($this->dayNames)));
+            foreach ($this->dayNames as $dayName) {
+                foreach ($this->breakHourNames as $hourName) {
+                    $this->w->startElement('Break_Time');
+                    $this->w->writeElement('Day', $dayName);
+                    $this->w->writeElement('Hour', $hourName);
+                    $this->w->endElement();
+                }
+            }
+            $this->w->writeElement('Active', 'true');
+            $this->w->writeElement('Comments', '');
+            $this->w->endElement();
+        }
 
         // Teacher not-available times
         $ttc = TeacherTimeConstraint::whereIn('teacher_id', $teachers->pluck('id'))->get();
