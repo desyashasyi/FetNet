@@ -5,7 +5,9 @@ namespace Tests\Feature\FetNet;
 use App\Models\FetNet\AcademicYear;
 use App\Models\FetNet\Client;
 use App\Models\FetNet\ClientConfig;
+use App\Models\FetNet\Program;
 use App\Models\FetNet\Semester;
+use App\Models\FetNet\Teacher;
 use App\Models\User;
 use App\Services\FetNet\FetSolutionParser;
 use App\Services\FetNet\FetXmlBuilder;
@@ -31,22 +33,28 @@ class FetBreakTimeTest extends TestCase
         ]);
     }
 
-    public function test_builder_includes_break_hour_and_break_constraint(): void
+    public function test_builder_models_break_as_not_available_for_everyone(): void
     {
-        $user   = User::factory()->create();
-        $client = Client::create(['user_id' => $user->id]);
+        $user    = User::factory()->create();
+        $client  = Client::create(['user_id' => $user->id]);
         $this->configFor($client);
+        $program = Program::create(['client_id' => $client->id, 'user_id' => $user->id, 'abbrev' => 'TE', 'name' => 'TE']);
+        Teacher::create(['program_id' => $program->id, 'code' => 'DDW', 'name' => 'Didin']);
+        \App\Models\FetNet\Student::create(['program_id' => $program->id, 'name' => '2025']);
         $ay  = AcademicYear::create(['client_id' => $client->id, 'year_start' => 2025, 'is_active' => true]);
         $sem = Semester::create(['client_id' => $client->id, 'academic_year_id' => $ay->id, 'semester' => 1, 'name' => 'Ganjil']);
 
         $xml = app(FetXmlBuilder::class)->build($client, $sem);
 
-        // The break hour is a real hour in the list (so the day's halves aren't consecutive).
+        // The break hour is a real hour in the list (a barrier between morning and afternoon).
         $this->assertStringContainsString('<Name>12:00</Name>', $xml);
-        // The bookable hour after lunch is present too.
         $this->assertStringContainsString('<Name>13:00</Name>', $xml);
-        // And the break is marked unavailable for everyone.
-        $this->assertStringContainsString('<ConstraintBreakTimes>', $xml);
+
+        // The break is modeled as Not_Available for everyone (NOT ConstraintBreakTimes, which
+        // FET would let activities span).
+        $this->assertStringNotContainsString('ConstraintBreakTimes', $xml);
+        $this->assertStringContainsString('<ConstraintTeacherNotAvailableTimes>', $xml);
+        $this->assertStringContainsString('<ConstraintStudentsSetNotAvailableTimes>', $xml);
         $this->assertStringContainsString('<Hour>12:00</Hour>', $xml);
     }
 

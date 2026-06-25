@@ -486,42 +486,39 @@ class FetXmlBuilder
         $this->w->writeElement('Comments', '');
         $this->w->endElement();
 
-        // Break: mark the configured break hour(s) unavailable for everyone, on every day.
-        // Because the break hour sits between the two halves of the day in Hours_List, this
-        // also prevents a multi-hour activity from spanning lunch (it would need consecutive
-        // available hours, and the break is not available).
-        if (! empty($this->breakHourNames) && ! empty($this->dayNames)) {
-            $this->w->startElement('ConstraintBreakTimes');
-            $this->w->writeElement('Weight_Percentage', '100');
-            $this->w->writeElement('Number_of_Break_Times', (string) (count($this->breakHourNames) * count($this->dayNames)));
-            foreach ($this->dayNames as $dayName) {
-                foreach ($this->breakHourNames as $hourName) {
-                    $this->w->startElement('Break_Time');
-                    $this->w->writeElement('Day', $dayName);
-                    $this->w->writeElement('Hour', $hourName);
-                    $this->w->endElement();
-                }
+        // Break = Not_Available for EVERYONE (every teacher + every student set), on every day.
+        // FET lets activities span a ConstraintBreakTimes, so that does NOT stop a multi-hour
+        // class from straddling lunch. Modeling the break as not-available instead forces a
+        // class to fit wholly before or after it (the teacher/students are absent during the
+        // break, and an activity needs them for all its consecutive hours). The duration still
+        // equals the SKS — the block just may not occupy the break hour. The break hour stays in
+        // Hours_List so it is a real barrier between the morning and afternoon hours.
+        $breakPairs = [];
+        foreach ($this->dayNames as $dayName) {
+            foreach ($this->breakHourNames as $hourName) {
+                $breakPairs[] = ['day' => $dayName, 'hour' => $hourName];
             }
-            $this->w->writeElement('Active', 'true');
-            $this->w->writeElement('Comments', '');
-            $this->w->endElement();
         }
 
-        // Teacher not-available times
-        $ttc = TeacherTimeConstraint::whereIn('teacher_id', $teachers->pluck('id'))->get();
-        foreach ($ttc->groupBy('teacher_id') as $teacherId => $rows) {
-            $key = $this->teacherKey[$teacherId] ?? null;
-            if (! $key) continue;
-            $valid = $rows->filter(fn($r) => isset($this->dayNames[$r->day], $this->hourNames[$r->hour]));
-            if ($valid->isEmpty()) continue;
+        // Teacher not-available times = own constraints + the break, for every teacher.
+        $ttcByTeacher = TeacherTimeConstraint::whereIn('teacher_id', array_keys($this->teacherKey))
+            ->get()->groupBy('teacher_id');
+        foreach ($this->teacherKey as $teacherId => $key) {
+            $pairs = $breakPairs;
+            foreach ($ttcByTeacher[$teacherId] ?? [] as $r) {
+                if (isset($this->dayNames[$r->day], $this->hourNames[$r->hour])) {
+                    $pairs[] = ['day' => $this->dayNames[$r->day], 'hour' => $this->hourNames[$r->hour]];
+                }
+            }
+            if (empty($pairs)) continue;
             $this->w->startElement('ConstraintTeacherNotAvailableTimes');
             $this->w->writeElement('Weight_Percentage', '100');
             $this->w->writeElement('Teacher', $key);
-            $this->w->writeElement('Number_of_Not_Available_Times', (string) $valid->count());
-            foreach ($valid as $r) {
+            $this->w->writeElement('Number_of_Not_Available_Times', (string) count($pairs));
+            foreach ($pairs as $p) {
                 $this->w->startElement('Not_Available_Time');
-                $this->w->writeElement('Day', $this->dayNames[$r->day]);
-                $this->w->writeElement('Hour', $this->hourNames[$r->hour]);
+                $this->w->writeElement('Day', $p['day']);
+                $this->w->writeElement('Hour', $p['hour']);
                 $this->w->endElement();
             }
             $this->w->writeElement('Active', 'true');
@@ -529,22 +526,26 @@ class FetXmlBuilder
             $this->w->endElement();
         }
 
-        // Student set not-available times (flatten any Student id in tree)
-        $allStudentIds = $this->collectStudentIds($students);
-        $stc = StudentTimeConstraint::whereIn('student_id', $allStudentIds)->get();
-        foreach ($stc->groupBy('student_id') as $studentId => $rows) {
-            $key = $this->studentKey[$studentId] ?? null;
-            if (! $key) continue;
-            $valid = $rows->filter(fn($r) => isset($this->dayNames[$r->day], $this->hourNames[$r->hour]));
-            if ($valid->isEmpty()) continue;
+        // Student set not-available times = own constraints + the break, for every student set
+        // (year, group and subgroup levels are all keyed in $studentKey).
+        $stcByStudent = StudentTimeConstraint::whereIn('student_id', array_keys($this->studentKey))
+            ->get()->groupBy('student_id');
+        foreach ($this->studentKey as $studentId => $key) {
+            $pairs = $breakPairs;
+            foreach ($stcByStudent[$studentId] ?? [] as $r) {
+                if (isset($this->dayNames[$r->day], $this->hourNames[$r->hour])) {
+                    $pairs[] = ['day' => $this->dayNames[$r->day], 'hour' => $this->hourNames[$r->hour]];
+                }
+            }
+            if (empty($pairs)) continue;
             $this->w->startElement('ConstraintStudentsSetNotAvailableTimes');
             $this->w->writeElement('Weight_Percentage', '100');
             $this->w->writeElement('Students', $key);
-            $this->w->writeElement('Number_of_Not_Available_Times', (string) $valid->count());
-            foreach ($valid as $r) {
+            $this->w->writeElement('Number_of_Not_Available_Times', (string) count($pairs));
+            foreach ($pairs as $p) {
                 $this->w->startElement('Not_Available_Time');
-                $this->w->writeElement('Day', $this->dayNames[$r->day]);
-                $this->w->writeElement('Hour', $this->hourNames[$r->hour]);
+                $this->w->writeElement('Day', $p['day']);
+                $this->w->writeElement('Hour', $p['hour']);
                 $this->w->endElement();
             }
             $this->w->writeElement('Active', 'true');
