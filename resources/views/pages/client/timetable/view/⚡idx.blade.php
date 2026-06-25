@@ -56,6 +56,28 @@ new #[Layout('layouts.print')] class extends Component
             : $this->warning('Slot unlocked.', position: 'toast-top toast-center');
     }
 
+    /**
+     * Bulk lock / unlock every placed slot in the current scope. When a program is selected
+     * it only affects that program's slots; otherwise the whole published semester. Lets a
+     * client pin an entire (program) view at once before re-generating.
+     */
+    public function lockAll(bool $locked = true): void
+    {
+        if (! $this->clientId || ! $this->semesterId) return;
+
+        $count = TimetableSlot::where('client_id', $this->clientId)
+            ->where('semester_id', $this->semesterId)
+            ->when($this->programFilterId, fn($q) => $q->whereHas('activity',
+                fn($a) => $a->where('program_id', $this->programFilterId)))
+            ->update(['locked' => $locked]);
+
+        unset($this->placedSlots);
+
+        $locked
+            ? $this->success("{$count} slot(s) locked.", position: 'toast-top toast-center')
+            : $this->warning("{$count} slot(s) unlocked.", position: 'toast-top toast-center');
+    }
+
     #[Computed]
     public function clientId(): ?int
     {
@@ -170,7 +192,9 @@ new #[Layout('layouts.print')] class extends Component
             'room'    => $this->roomFilterId
                 ? collect($this->placedSlots)->filter(fn($s) => $s->room_id === $this->roomFilterId)
                 : collect(),
-            default   => $this->placedSlots,
+            default   => $this->programFilterId
+                ? collect($this->placedSlots)->filter(fn($s) => $s->activity?->program_id === $this->programFilterId)
+                : collect($this->placedSlots),
         };
         foreach ($slots as $s) {
             $out[$s->day_index][$s->hour_index][] = $s;
@@ -318,12 +342,33 @@ new #[Layout('layouts.print')] class extends Component
                       tooltip="Table mode" />
         </div>
 
+        {{-- Bulk lock: pins every slot in the current scope (the selected program, or the
+             whole semester when no program is picked) so re-generating keeps them in place. --}}
+        <div class="join print:hidden">
+            <x-button label="Lock all" icon="o-lock-closed"
+                      class="btn-sm join-item btn-primary"
+                      wire:click="lockAll(true)" spinner="lockAll"
+                      tooltip="{{ $this->programFilterId ? 'Lock all slots in this program' : 'Lock all slots in this semester' }}" />
+            <x-button label="Unlock all" icon="o-lock-open"
+                      class="btn-sm join-item btn-ghost"
+                      wire:click="lockAll(false)"
+                      tooltip="Unlock all slots in the current scope" />
+        </div>
+
         <x-button icon="o-printer" class="btn-ghost btn-sm btn-square"
                   tooltip="Print" onclick="window.print()" />
     </div>
 
     {{-- Filters --}}
-    @if($view === 'teacher')
+    @if($view === 'grid')
+        <div class="flex flex-wrap items-center gap-2 mb-3 print:hidden">
+            <x-choices single clearable
+                       wire:model.live="programFilterId"
+                       :options="$this->programOptions"
+                       placeholder="Pick a program"
+                       class="w-max min-w-60" />
+        </div>
+    @elseif($view === 'teacher')
         <div class="flex flex-wrap items-center gap-2 mb-3">
             <x-choices single clearable
                        wire:model.live="programFilterId"
