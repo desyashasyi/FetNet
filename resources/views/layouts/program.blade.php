@@ -7,10 +7,10 @@
     <title>{{ isset($title) ? $title.' - '.config('app.name') : config('app.name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen font-sans antialiased bg-base-200 pb-16 overflow-x-hidden">
+<body class="min-h-screen font-sans antialiased bg-base-200 pb-16 overflow-x-hidden print:pb-0 print:bg-white">
 
 {{-- Top bar --}}
-<div class="navbar bg-purple-700 text-white sticky top-0 z-30 px-4">
+<div class="navbar bg-purple-700 text-white sticky top-0 z-30 px-4 print:hidden">
     <div class="flex-1">
         <x-app-brand class="text-white [&_*]:text-white" />
     </div>
@@ -32,7 +32,7 @@
     #prog-nav { scrollbar-width: none; -ms-overflow-style: none; }
 </style>
 <nav id="prog-nav"
-     class="fixed bottom-0 left-0 right-0 z-50 bg-purple-900 shadow-[0_-2px_10px_rgba(0,0,0,0.3)] h-16 overflow-x-auto flex justify-center">
+     class="fixed bottom-0 left-0 right-0 z-50 bg-purple-900 shadow-[0_-2px_10px_rgba(0,0,0,0.3)] h-16 overflow-x-auto flex justify-center print:hidden">
 <div class="flex h-full items-center min-w-max px-2 gap-0.5">
 
     @php
