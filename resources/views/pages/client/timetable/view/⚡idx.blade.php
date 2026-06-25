@@ -496,13 +496,12 @@ new #[Layout('layouts.print')] class extends Component
                                                     <x-icon name="o-exclamation-triangle" class="w-4 h-4 text-error"
                                                             tooltip="Clashes with a teacher's not-available time" />
                                                 @endif
-                                                @if($view === 'teacher')
-                                                    <x-button :icon="$slot->locked ? 'o-lock-closed' : 'o-lock-open'"
-                                                              class="btn-ghost btn-xs btn-square -mr-1 -mt-0.5 print:hidden {{ $slot->locked ? 'text-warning' : 'text-base-content/30' }}"
-                                                              wire:click="toggleLock({{ $slot->id }})"
-                                                              spinner="toggleLock({{ $slot->id }})"
-                                                              :tooltip="$slot->locked ? 'Locked — click to unlock' : 'Lock this slot in place'" />
-                                                @endif
+                                                {{-- Lock/unlock this class, available in every grid view. --}}
+                                                <x-button :icon="$slot->locked ? 'o-lock-closed' : 'o-lock-open'"
+                                                          class="btn-ghost btn-xs btn-square -mr-1 -mt-0.5 print:hidden {{ $slot->locked ? 'text-warning' : 'text-base-content/30' }}"
+                                                          wire:click="toggleLock({{ $slot->id }})"
+                                                          spinner="toggleLock({{ $slot->id }})"
+                                                          :tooltip="$slot->locked ? 'Locked — click to unlock' : 'Lock this slot in place'" />
                                             </div>
                                         </div>
                                         <div class="text-xs text-base-content/70 leading-tight">

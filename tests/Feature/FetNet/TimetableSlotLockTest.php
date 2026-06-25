@@ -59,6 +59,19 @@ class TimetableSlotLockTest extends TestCase
         $this->assertFalse($slot->fresh()->locked);
     }
 
+    public function test_grid_mode_shows_lock_button_in_default_view(): void
+    {
+        [$user, $sem, $slot] = $this->scaffold();
+
+        // Grid mode + the default "grid" (All) view — the lock toggle must be present
+        // on the class card, not only in the teacher view.
+        $html = Livewire::actingAs($user)->test(self::PAGE, ['sem' => $sem->id])
+            ->set('view', 'grid')->set('mode', 'grid')
+            ->html();
+
+        $this->assertStringContainsString('toggleLock(' . $slot->id . ')', $html);
+    }
+
     public function test_cannot_lock_another_clients_slot(): void
     {
         [, $sem, $slot] = $this->scaffold();
