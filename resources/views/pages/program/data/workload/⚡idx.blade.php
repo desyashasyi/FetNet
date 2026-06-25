@@ -44,19 +44,10 @@ new #[Layout('layouts.program')] class extends Component
         $this->persistSemester();
     }
 
-    /** Build the cross-program workload recap (programs + rows) for the chosen semester. */
+    /** Expose the program id; the workload-table child builds the recap itself. */
     public function with(): array
     {
-        $program = $this->program();
-
-        $report = $program
-            ? app(LecturerWorkloadReport::class)->forProgram($program, $this->semesterId)
-            : ['programs' => [], 'rows' => []];
-
-        return [
-            'programs' => $report['programs'],
-            'rows'     => $report['rows'],
-        ];
+        return ['programId' => $this->program()?->id];
     }
 }; ?>
 
@@ -73,11 +64,10 @@ new #[Layout('layouts.program')] class extends Component
     @if(! $semesterId)
         <x-alert title="Select a semester to view the workload recap."
                  icon="o-information-circle" class="alert-info" />
-    @elseif(count($rows) === 0)
-        <x-alert title="No lecturer workload found for this period."
-                 icon="o-information-circle" class="alert-info" />
     @else
         <livewire:pages::client.data.workload.workload-table
-            :programs="$programs" :rows="$rows" :key="'wt-' . $semesterId" />
+            :program-id="$programId"
+            :semester-id="$semesterId"
+            :key="'wt-' . $semesterId . '-' . $programId" />
     @endif
 </div>

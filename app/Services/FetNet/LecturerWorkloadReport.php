@@ -129,9 +129,21 @@ class LecturerWorkloadReport
             ->groupBy('activity_id')
             ->map(fn ($g) => $g->pluck('name')->values()->all());
 
+        // Display label (code, falling back to name) for every teacher seen on any activity,
+        // and the ordered teacher list per activity — used to surface tandem/team-teaching
+        // partners in each subject's hover detail.
+        $teacherDisplay = Teacher::whereIn('id', $raw->pluck('teacher_id')->unique()->all())
+            ->get(['id', 'name', 'code'])
+            ->mapWithKeys(fn ($t) => [$t->id => ($t->code ?: $t->name)]);
+
+        $activityTeacherIds = [];
+        foreach ($raw as $r) {
+            $activityTeacherIds[$r->activity_id][] = $r->teacher_id;
+        }
+
         $reportSet  = array_flip($teacherIds->all());
         $matrix     = []; // [teacher_id][program_id]['p1'|'p2'] => credit sum
-        $details    = []; // [teacher_id][program_id]['p1'|'p2'] => list of {code,name,classes}
+        $details    = []; // [teacher_id][program_id]['p1'|'p2'] => list of {code,name,classes,co}
         $programIds = [];
 
         foreach ($raw as $r) {
@@ -144,10 +156,19 @@ class LecturerWorkloadReport
             $matrix[$r->teacher_id][$pid][$role] =
                 ($matrix[$r->teacher_id][$pid][$role] ?? 0) + (int) $r->credit;
 
+            // Co-lecturers on this activity (team teaching) = everyone but the current one.
+            $co = [];
+            foreach ($activityTeacherIds[$r->activity_id] ?? [] as $tid) {
+                if ($tid !== $r->teacher_id) {
+                    $co[] = $teacherDisplay[$tid] ?? ('T' . $tid);
+                }
+            }
+
             $details[$r->teacher_id][$pid][$role][] = [
                 'code'    => $r->code,
                 'name'    => $r->name,
                 'classes' => $classNames->get($r->activity_id, []),
+                'co'      => $co,
             ];
 
             $programIds[$pid] = true;
