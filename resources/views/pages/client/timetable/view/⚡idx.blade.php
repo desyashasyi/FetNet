@@ -311,8 +311,19 @@ new #[Layout('layouts.print')] class extends Component
 }; ?>
 
 <div>
+    {{-- Print-only heading: labels the printout with the selected program + semester. --}}
+    @php($printProgram = $programFilterId ? (collect($this->programOptions)->firstWhere('id', $programFilterId)['name'] ?? null) : null)
+    <div class="hidden print:block mb-4">
+        <h1 class="text-xl font-bold leading-tight">Generated Timetable — {{ $printProgram ?? 'All Programs' }}</h1>
+        <p class="text-sm text-base-content/70">
+            {{ $this->semester?->academicYear?->label }}
+            @if($this->semester) — Semester {{ $this->semester->semester }} ({{ $this->semester->name }}) @endif
+            @if($view !== 'grid') · {{ ucfirst($view) }} view @endif
+        </p>
+    </div>
+
     {{-- Top toolbar (compact, no main nav) --}}
-    <div class="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b border-base-300">
+    <div class="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b border-base-300 print:hidden">
         <x-icon name="o-table-cells" class="w-6 h-6 text-primary" />
         <div>
             <h1 class="text-lg font-bold leading-tight">Generated Timetable</h1>
@@ -369,7 +380,7 @@ new #[Layout('layouts.print')] class extends Component
                        class="w-max min-w-60" />
         </div>
     @elseif($view === 'teacher')
-        <div class="flex flex-wrap items-center gap-2 mb-3">
+        <div class="flex flex-wrap items-center gap-2 mb-3 print:hidden">
             <x-choices single clearable
                        wire:model.live="programFilterId"
                        :options="$this->programOptions"
@@ -382,7 +393,7 @@ new #[Layout('layouts.print')] class extends Component
                        class="w-max min-w-60" />
         </div>
     @elseif($view === 'student')
-        <div class="flex flex-wrap items-center gap-2 mb-3">
+        <div class="flex flex-wrap items-center gap-2 mb-3 print:hidden">
             <x-choices single clearable
                        wire:model.live="programFilterId"
                        :options="$this->programOptions"
@@ -399,7 +410,7 @@ new #[Layout('layouts.print')] class extends Component
                    wire:model.live="roomFilterId"
                    :options="$this->roomOptions"
                    placeholder="Pick a room"
-                   class="w-max min-w-60 mb-3" />
+                   class="w-max min-w-60 mb-3 print:hidden" />
     @endif
 
     @if(count($this->placedSlots) === 0)
