@@ -97,7 +97,7 @@ new #[Layout('layouts.program')] class extends Component
 
         return TimetableSlot::with([
                 'activity.planning.subject:id,code,name',
-                'activity.teachers:id,code,name',
+                'activity.teachers:id,code,name,univ_code',
                 'activity.students:id,name',
                 'room:id,code,name',
             ])
@@ -147,8 +147,11 @@ new #[Layout('layouts.program')] class extends Component
                         'hour'      => $this->hourLabels[$hIdx - 1] ?? "H{$hIdx}",
                         'subj_code' => $s->activity?->planning?->subject?->code ?? '—',
                         'subj_name' => $s->activity?->planning?->subject?->name ?? '—',
-                        'teacher'   => $s->activity?->teachers->pluck('code')->filter()->implode(', ')
-                                    ?: ($s->activity?->teachers->pluck('name')->implode(', ') ?? '—'),
+                        // Table mode shows each lecturer as "CODE (univ_code)", e.g. "DDW (2934)".
+                        'teacher'   => $s->activity?->teachers->map(function ($t) {
+                                        $label = $t->code ?: $t->name;
+                                        return $t->univ_code ? "{$label} ({$t->univ_code})" : $label;
+                                    })->filter()->implode(', ') ?: '—',
                         'students'  => $s->activity?->students->pluck('name')->implode(', ') ?? '—',
                         'room'      => $s->room ? ($s->room->code ?? $s->room->name) : '—',
                     ]);
